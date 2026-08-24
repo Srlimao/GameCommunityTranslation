@@ -37,7 +37,6 @@ export const BatchTranslateModal: React.FC<BatchTranslateModalProps> = ({
   useEffect(() => {
     if (!isOpen) return;
 
-    // Check for any currently running batch job on initial open
     const active = SseTranslationStream.getActiveJob(gameId, languageCode) || SseTranslationStream.getActiveJob();
     if (active && active.status === 'running') {
       setProgress(active);
@@ -45,9 +44,7 @@ export const BatchTranslateModal: React.FC<BatchTranslateModalProps> = ({
       setCurrentJobId(active.jobId);
     }
 
-    // Subscribe to SSE events
     const unsub = SseTranslationStream.onProgress((data) => {
-      // Check if this progress event matches this language, or the active job, or if any job is currently running
       const isMatch =
         (data.gameId === gameId && data.languageCode === languageCode) ||
         (currentJobId && data.jobId === currentJobId) ||
@@ -113,66 +110,64 @@ export const BatchTranslateModal: React.FC<BatchTranslateModalProps> = ({
     : 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950/40">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-indigo-600/20 text-indigo-400 flex items-center justify-center">
-              <Sparkles className="w-5 h-5" />
-            </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 font-mono">
+      <div className="bg-[#161B22] border border-[#30363D] w-full max-w-xl overflow-hidden shadow-none">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[#30363D] bg-[#10141D]">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-[#5865F2]" />
             <div>
-              <h2 className="font-bold text-lg text-slate-100">Batch Translation with LM Studio</h2>
-              <p className="text-xs text-slate-400">Target: {languageName} ({languageCode})</p>
+              <h2 className="font-bold text-xs uppercase tracking-wider text-[#E6EDF3]">Batch Translation Queue</h2>
+              <p className="text-[10px] text-[#8B949E]">Target: {languageName} ({languageCode})</p>
             </div>
           </div>
           {!isEffectivelyRunning && (
-            <button onClick={onClose} className="text-slate-400 hover:text-slate-200 p-1 rounded-lg">
-              <X className="w-5 h-5" />
+            <button onClick={onClose} className="text-[#8B949E] hover:text-[#E6EDF3] p-1">
+              <X className="w-4 h-4" />
             </button>
           )}
         </div>
 
-        <div className="p-6 space-y-4">
+        <div className="p-4 space-y-3.5 text-xs">
           {error && (
-            <div className="p-3 rounded-lg bg-rose-950/50 border border-rose-800/60 text-rose-300 text-sm">
+            <div className="p-2.5 bg-[#E5534B]/10 border border-[#E5534B] text-[#F85149]">
               {error}
             </div>
           )}
 
           {!isEffectivelyRunning && !progress && (
             <>
-              <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800 space-y-3">
-                <label className="flex items-center gap-3 cursor-pointer">
+              <div className="bg-[#0D1117] p-3 border border-[#30363D] space-y-2.5">
+                <label className="flex items-center gap-2.5 cursor-pointer">
                   <input
                     type="radio"
                     name="batchScope"
                     checked={onlyUntranslated}
                     onChange={() => setOnlyUntranslated(true)}
-                    className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
+                    className="accent-[#5865F2]"
                   />
                   <div>
-                    <div className="text-sm font-semibold text-slate-200">
+                    <div className="text-xs font-bold text-[#E6EDF3]">
                       Translate Missing Keys Only ({untranslatedCount} keys)
                     </div>
-                    <div className="text-xs text-slate-400">
+                    <div className="text-[10px] text-[#8B949E]">
                       Skips keys that have already been translated or approved.
                     </div>
                   </div>
                 </label>
 
-                <label className="flex items-center gap-3 cursor-pointer pt-2 border-t border-slate-800">
+                <label className="flex items-center gap-2.5 cursor-pointer pt-2 border-t border-[#30363D]">
                   <input
                     type="radio"
                     name="batchScope"
                     checked={!onlyUntranslated}
                     onChange={() => setOnlyUntranslated(false)}
-                    className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
+                    className="accent-[#5865F2]"
                   />
                   <div>
-                    <div className="text-sm font-semibold text-slate-200">
+                    <div className="text-xs font-bold text-[#E6EDF3]">
                       Translate All Keys ({totalCount} keys)
                     </div>
-                    <div className="text-xs text-slate-400">
+                    <div className="text-[10px] text-[#8B949E]">
                       Re-translates all strings with current game context & glossary.
                     </div>
                   </div>
@@ -180,7 +175,7 @@ export const BatchTranslateModal: React.FC<BatchTranslateModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#8B949E] mb-1">
                   Optional Batch Guidance / Custom Instructions
                 </label>
                 <input
@@ -188,7 +183,7 @@ export const BatchTranslateModal: React.FC<BatchTranslateModalProps> = ({
                   value={customInstructions}
                   onChange={(e) => setCustomInstructions(e.target.value)}
                   placeholder="e.g. Ensure all NPC lines sound formal; keep weapon names under 20 chars..."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-[#0D1117] border border-[#30363D] px-2.5 py-1.5 text-xs text-[#E6EDF3] outline-none focus:border-[#5865F2]"
                 />
               </div>
             </>
@@ -196,60 +191,60 @@ export const BatchTranslateModal: React.FC<BatchTranslateModalProps> = ({
 
           {/* Active / Finished Progress View */}
           {(isEffectivelyRunning || progress) && (
-            <div className="space-y-4 py-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-slate-300">
+            <div className="space-y-3 py-1">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-[#E6EDF3]">
                   {progress?.status === 'completed' ? (
-                    <span className="text-emerald-400 font-bold flex items-center gap-1.5">
-                      <CheckCircle2 className="w-4 h-4" /> Batch Complete!
+                    <span className="text-[#3FB950] flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> BATCH COMPLETE!
                     </span>
                   ) : progress?.status === 'cancelled' ? (
-                    <span className="text-amber-400 font-bold flex items-center gap-1.5">
-                      <AlertTriangle className="w-4 h-4" /> Batch Cancelled
+                    <span className="text-[#E5534B] flex items-center gap-1">
+                      <AlertTriangle className="w-3.5 h-3.5" /> BATCH CANCELLED
                     </span>
                   ) : (
-                    <span className="text-indigo-400 font-bold flex items-center gap-1.5">
-                      <Loader2 className="w-4 h-4 animate-spin" /> Translating with LM Studio...
+                    <span className="text-[#5865F2] flex items-center gap-1">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> TRANSLATING BATCH...
                     </span>
                   )}
                 </span>
-                <span className="text-sm font-bold font-mono text-slate-200">
+                <span className="font-bold text-[#E6EDF3]">
                   {progress ? `${progress.completed} / ${progress.total}` : `0 / ${targetCount}`} ({percentage}%)
                 </span>
               </div>
 
               {/* Progress Bar */}
-              <div className="w-full h-3 bg-slate-950 rounded-full overflow-hidden border border-slate-800 p-0.5">
+              <div className="w-full h-2 bg-[#0D1117] border border-[#30363D] overflow-hidden">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 transition-all duration-300"
+                  className="h-full bg-[#5865F2] transition-all duration-300"
                   style={{ width: `${percentage}%` }}
                 />
               </div>
 
               {progress?.currentKey && isEffectivelyRunning && (
-                <div className="text-xs text-slate-400 font-mono truncate bg-slate-950 p-2.5 rounded-lg border border-slate-800">
-                  Translating: <span className="text-indigo-300 font-semibold">{progress.currentKey}</span>
+                <div className="text-[10px] text-[#8B949E] font-mono truncate bg-[#0D1117] p-2 border border-[#30363D]">
+                  Translating: <span className="text-[#E6EDF3] font-bold">{progress.currentKey}</span>
                 </div>
               )}
             </div>
           )}
 
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#30363D]">
             {isEffectivelyRunning ? (
               <button
                 type="button"
                 onClick={handleCancel}
-                className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold bg-rose-600 hover:bg-rose-500 text-white transition-colors shadow-lg shadow-rose-600/30 cursor-pointer"
+                className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold bg-[#E5534B] hover:bg-[#F85149] text-white border border-[#E5534B] transition-colors"
               >
-                <StopCircle className="w-4 h-4" />
-                <span>Stop Batch</span>
+                <StopCircle className="w-3.5 h-3.5" />
+                <span>STOP BATCH</span>
               </button>
             ) : (
               <>
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors cursor-pointer"
+                  className="px-3 py-1.5 text-xs text-[#8B949E] hover:text-[#E6EDF3] border border-[#30363D] bg-[#0D1117]"
                 >
                   {progress?.status === 'completed' ? 'Close' : 'Cancel'}
                 </button>
@@ -258,10 +253,10 @@ export const BatchTranslateModal: React.FC<BatchTranslateModalProps> = ({
                     type="button"
                     onClick={handleStart}
                     disabled={targetCount === 0}
-                    className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition-colors disabled:opacity-50 shadow-md shadow-indigo-600/20 cursor-pointer"
+                    className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold bg-[#5865F2] hover:bg-[#4C6EF5] text-white border border-[#5865F2] transition-colors disabled:opacity-50"
                   >
-                    <Sparkles className="w-4 h-4" />
-                    <span>Start Batch ({targetCount} keys)</span>
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>START BATCH ({targetCount} keys)</span>
                   </button>
                 )}
               </>

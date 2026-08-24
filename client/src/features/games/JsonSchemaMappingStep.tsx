@@ -1,6 +1,6 @@
 import React from 'react';
 import { JsonAnalysisResult, JsonSchemaConfig } from '../../types/client_types.ts';
-import { Layers, Key, FileText, MessageSquareQuote, Info, FolderTree } from 'lucide-react';
+import { Layers, Key, FileText, MessageSquareQuote, FolderTree } from 'lucide-react';
 
 interface JsonSchemaMappingStepProps {
   analysis: JsonAnalysisResult;
@@ -38,20 +38,20 @@ export const JsonSchemaMappingStep: React.FC<JsonSchemaMappingStepProps> = ({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 font-mono">
       {/* Mode & Root Selector Bar */}
-      <div className="bg-slate-950/80 p-4 rounded-xl border border-slate-800 space-y-3">
+      <div className="bg-[#0D1117] p-3 border border-[#30363D] space-y-2.5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-indigo-600/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30">
-              <Layers className="w-5 h-5" />
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 bg-[#161B22] text-[#5865F2] flex items-center justify-center border border-[#30363D]">
+              <Layers className="w-4 h-4" />
             </div>
             <div>
-              <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+              <div className="text-[10px] font-bold text-[#8B949E] uppercase tracking-wider">
                 Import Structure Mode
               </div>
-              <div className="text-sm font-bold text-slate-100">
-                Found <strong>{analysis.totalItemsCount.toLocaleString()}</strong> items in file
+              <div className="text-xs font-bold text-[#E6EDF3]">
+                {analysis.totalItemsCount.toLocaleString()} items found
               </div>
             </div>
           </div>
@@ -60,20 +60,20 @@ export const JsonSchemaMappingStep: React.FC<JsonSchemaMappingStepProps> = ({
             <select
               value={schemaConfig.mode}
               onChange={(e) => handleModeChange(e.target.value as any)}
-              className="w-full bg-slate-900 border border-indigo-500/50 rounded-lg px-3.5 py-2 text-xs font-bold text-indigo-300 focus:outline-none focus:border-indigo-400"
+              className="w-full bg-[#161B22] border border-[#5865F2] px-2.5 py-1 text-xs font-bold text-[#E6EDF3] outline-none"
             >
-              <option value="array_of_objects">Array / List of Records (with Key/Value fields)</option>
-              <option value="dictionary_kv">Dictionary / Key-Value Map ("key": "value")</option>
-              <option value="nested_tree">Standard Nested Tree (Auto-flatten all strings)</option>
+              <option value="array_of_objects">Array / List of Records</option>
+              <option value="dictionary_kv">Dictionary / Key-Value Map</option>
+              <option value="nested_tree">Standard Nested Tree</option>
             </select>
           </div>
         </div>
 
-        {/* If Array/Object is wrapped inside a property like "Translations": [...] */}
+        {/* If Array/Object is wrapped */}
         {analysis.detectedListPaths && analysis.detectedListPaths.length > 0 && schemaConfig.mode === 'array_of_objects' && (
-          <div className="pt-2 border-t border-slate-850 flex items-center justify-between gap-2 flex-wrap">
-            <label className="flex items-center gap-1.5 text-xs text-slate-400">
-              <FolderTree className="w-3.5 h-3.5 text-indigo-400" />
+          <div className="pt-2 border-t border-[#30363D] flex items-center justify-between gap-2 flex-wrap text-xs">
+            <label className="flex items-center gap-1.5 text-[10px] text-[#8B949E] uppercase font-bold">
+              <FolderTree className="w-3.5 h-3.5 text-[#5865F2]" />
               <span>Target List Property:</span>
             </label>
             <select
@@ -83,7 +83,7 @@ export const JsonSchemaMappingStep: React.FC<JsonSchemaMappingStepProps> = ({
                 if (onSelectRootPath) onSelectRootPath(path);
                 onChangeSchema({ ...schemaConfig, rootPath: path || undefined });
               }}
-              className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs font-mono text-slate-200 focus:outline-none focus:border-indigo-500"
+              className="bg-[#161B22] border border-[#30363D] px-2 py-0.5 text-xs text-[#E6EDF3] outline-none"
             >
               {analysis.detectedListPaths.map((p) => (
                 <option key={p.path} value={p.path}>
@@ -97,62 +97,56 @@ export const JsonSchemaMappingStep: React.FC<JsonSchemaMappingStepProps> = ({
       </div>
 
       {isArrayOrRecord ? (
-        <div className="space-y-4 bg-slate-950/50 p-4 rounded-xl border border-slate-800/80">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="space-y-3 bg-[#0D1117] p-3 border border-[#30363D]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
             {/* Key / ID Field Selector */}
             <div>
-              <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
-                <Key className="w-3.5 h-3.5 text-amber-400" />
+              <label className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[#8B949E] mb-1">
+                <Key className="w-3 h-3 text-[#5865F2]" />
                 <span>1. Identifier / Key Attribute *</span>
               </label>
               <select
                 value={schemaConfig.keyField || analysis.suggestedKeyField || '_index'}
                 onChange={(e) => onChangeSchema({ ...schemaConfig, keyField: e.target.value })}
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-slate-200 focus:outline-none focus:border-indigo-500"
+                className="w-full bg-[#161B22] border border-[#30363D] px-2.5 py-1 text-xs text-[#E6EDF3] outline-none focus:border-[#5865F2]"
               >
                 {analysis.availableFields.map((f) => (
                   <option key={f} value={f}>
                     {f} {f === analysis.suggestedKeyField ? '(Recommended Key)' : ''}
                   </option>
                 ))}
-                <option value="_index">Auto Index ([0], [1], [2]...)</option>
+                <option value="_index">Auto Index ([0], [1]...)</option>
               </select>
-              <p className="text-[11px] text-slate-500 mt-1">
-                Property containing the unique localization key (e.g. <code>Key</code> or <code>id</code>).
-              </p>
             </div>
 
             {/* Context / Speaker Field Selector */}
             <div>
-              <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
-                <MessageSquareQuote className="w-3.5 h-3.5 text-purple-400" />
+              <label className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[#8B949E] mb-1">
+                <MessageSquareQuote className="w-3 h-3 text-[#3FB950]" />
                 <span>3. Context / Speaker (Optional)</span>
               </label>
               <select
                 value={schemaConfig.contextField || ''}
                 onChange={(e) => onChangeSchema({ ...schemaConfig, contextField: e.target.value || undefined })}
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-slate-200 focus:outline-none focus:border-indigo-500"
+                className="w-full bg-[#161B22] border border-[#30363D] px-2.5 py-1 text-xs text-[#E6EDF3] outline-none focus:border-[#5865F2]"
               >
                 <option value="">None (No extra note)</option>
                 {analysis.availableFields.map((f) => (
                   <option key={f} value={f}>
-                    {f} {f === analysis.suggestedContextField ? '(Auto-Detected Context)' : ''}
+                    {f} {f === analysis.suggestedContextField ? '(Auto Context)' : ''}
                   </option>
                 ))}
               </select>
-              <p className="text-[11px] text-slate-500 mt-1">
-                Included in translation prompts to give character/dialogue context to the AI.
-              </p>
             </div>
           </div>
 
           {/* Translatable Text Fields Selector */}
           <div>
-            <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">
-              <FileText className="w-3.5 h-3.5 text-emerald-400" />
+            <label className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[#8B949E] mb-1.5">
+              <FileText className="w-3 h-3 text-[#3FB950]" />
               <span>2. Translatable Text Attribute(s) *</span>
             </label>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1.5">
               {analysis.availableFields.map((field) => {
                 const isSelected = schemaConfig.textFields.includes(field);
                 const isKey = schemaConfig.keyField === field;
@@ -163,35 +157,29 @@ export const JsonSchemaMappingStep: React.FC<JsonSchemaMappingStepProps> = ({
                     type="button"
                     onClick={() => handleToggleTextField(field)}
                     disabled={isKey}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all ${
+                    className={`flex items-center gap-1 px-2.5 py-1 text-xs font-bold border transition-colors ${
                       isSelected
-                        ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
+                        ? 'bg-[#3FB950] text-slate-950 border-[#3FB950]'
                         : isKey
-                        ? 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed opacity-50'
-                        : 'bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-700'
+                        ? 'bg-[#161B22] text-[#8B949E] border-[#30363D] opacity-40 cursor-not-allowed'
+                        : 'bg-[#161B22] text-[#E6EDF3] border-[#30363D] hover:border-[#5865F2]'
                     }`}
                   >
                     <span>{field}</span>
-                    {isSelected && <span className="text-[10px] bg-black/30 px-1.5 py-0.2 rounded">Translate</span>}
+                    {isSelected && <span className="text-[9px] bg-black/30 text-white px-1">Active</span>}
                   </button>
                 );
               })}
             </div>
-            <p className="text-[11px] text-slate-500 mt-1.5">
-              Select which property contains the text to be translated (e.g. <code>Value</code> or <code>text</code>). Other properties (e.g. <code>Version</code>) are safely preserved on export.
-            </p>
           </div>
         </div>
       ) : schemaConfig.mode === 'dictionary_kv' ? (
-        <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800 text-xs text-slate-300 space-y-1">
-          <div className="font-bold text-slate-200">📖 Dictionary / Key-Value Map Mode:</div>
-          <p className="text-slate-400">
-            Each key in this dictionary maps directly to a string value. Keys are imported verbatim and preserved upon export.
-          </p>
+        <div className="bg-[#0D1117] p-3 border border-[#30363D] text-xs text-[#8B949E]">
+          Dictionary Mode: Top-level keys map directly to translation string values.
         </div>
       ) : (
-        <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800 text-xs text-slate-300 leading-relaxed">
-          🌲 <strong>Nested Tree Mode:</strong> All string leaves in this JSON object will be recursively flattened into dot-separated paths (e.g. <code className="text-indigo-400">menu.main.start</code>) and reconstructed upon export.
+        <div className="bg-[#0D1117] p-3 border border-[#30363D] text-xs text-[#8B949E]">
+          Nested Tree Mode: All string leaves will be flattened into dot-separated paths.
         </div>
       )}
     </div>

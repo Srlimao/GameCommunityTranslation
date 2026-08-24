@@ -3,7 +3,7 @@ import { GameSummary, GlossaryEntry } from '../../types/client_types.ts';
 import { ApiClient } from '../../services/api_client.ts';
 import { GlossaryTable } from './GlossaryTable.tsx';
 import { GlossaryEntryModal } from './GlossaryEntryModal.tsx';
-import { BookOpen, Plus, Search, Filter, Download } from 'lucide-react';
+import { Layers, Plus, Search, Filter, Download } from 'lucide-react';
 
 interface GlossaryManagerProps {
   game: GameSummary;
@@ -66,16 +66,16 @@ export const GlossaryManager: React.FC<GlossaryManagerProps> = ({ game }) => {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 font-mono">
       {/* Header & Action Bar */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-[#161B22] border border-[#30363D] p-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-            <BookOpen className="w-5 h-5 text-indigo-400" />
-            <span>Game Terminology Glossary</span>
+          <h2 className="text-sm font-bold text-[#E6EDF3] flex items-center gap-2 uppercase tracking-wider">
+            <Layers className="w-4 h-4 text-[#5865F2]" />
+            <span>Game Terminology Glossary ({entries.length})</span>
           </h2>
-          <p className="text-xs text-slate-400 mt-1">
-            Enforce strict, uniform translations for character names, abilities, lore terms, and UI concepts across all LLM requests.
+          <p className="text-xs text-[#8B949E] mt-0.5">
+            Enforce strict term pairs for characters, abilities, items, and UI across all LLM translation requests.
           </p>
         </div>
 
@@ -83,11 +83,11 @@ export const GlossaryManager: React.FC<GlossaryManagerProps> = ({ game }) => {
           {entries.length > 0 && (
             <button
               onClick={handleExportGlossary}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors"
+              className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold bg-[#0D1117] hover:bg-[#30363D] text-[#E6EDF3] border border-[#30363D] transition-colors"
               title="Export Glossary as JSON"
             >
               <Download className="w-3.5 h-3.5" />
-              <span>Export</span>
+              <span>EXPORT</span>
             </button>
           )}
 
@@ -96,40 +96,39 @@ export const GlossaryManager: React.FC<GlossaryManagerProps> = ({ game }) => {
               setEditingEntry(null);
               setIsModalOpen(true);
             }}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/20 transition-colors"
+            className="flex items-center gap-1 px-3 py-1 text-xs font-bold bg-[#5865F2] hover:bg-[#4C6EF5] text-white border border-[#5865F2] transition-colors"
           >
-            <Plus className="w-4 h-4" />
-            <span>Add Term</span>
+            <Plus className="w-3.5 h-3.5" />
+            <span>ADD TERM</span>
           </button>
         </div>
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5">
         <div className="relative w-full sm:w-80">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-3.5 h-3.5 text-[#8B949E] absolute left-2.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search glossary terms or notes..."
-            className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-9 pr-3.5 py-2 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500"
+            className="w-full bg-[#0D1117] border border-[#30363D] pl-8 pr-3 py-1.5 text-xs text-[#E6EDF3] placeholder:text-[#8B949E] outline-none focus:border-[#5865F2]"
           />
         </div>
 
-        <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
-          <Filter className="w-3.5 h-3.5 text-slate-400 mr-1 hidden sm:block" />
+        <div className="flex items-center gap-1 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
           {['All', 'Character', 'Item', 'Location', 'UI', 'Lore', 'General'].map((cat) => (
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
+              className={`px-2.5 py-1 text-xs font-bold border transition-colors ${
                 selectedCategory === cat
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
+                  ? 'bg-[#5865F2] text-white border-[#5865F2]'
+                  : 'bg-[#0D1117] text-[#8B949E] hover:text-[#E6EDF3] border-[#30363D]'
               }`}
             >
-              {cat}
+              {cat.toUpperCase()}
             </button>
           ))}
         </div>

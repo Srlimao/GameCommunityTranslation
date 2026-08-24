@@ -10,26 +10,26 @@ const getIssueBadge = (type: TranslationIssue['issue_type']) => {
   switch (type) {
     case 'placeholder_mismatch':
       return {
-        label: 'Placeholder Mismatch',
-        classes: 'bg-rose-950/80 text-rose-300 border-rose-800/60',
+        label: 'PLACEHOLDER MISMATCH',
+        classes: 'bg-[#E5534B]/20 text-[#F85149] border-[#E5534B]',
         icon: AlertCircle,
       };
     case 'formatting_loss':
       return {
-        label: 'Formatting Loss',
-        classes: 'bg-amber-950/80 text-amber-300 border-amber-800/60',
+        label: 'FORMATTING LOSS',
+        classes: 'bg-[#D29922]/20 text-[#E3B341] border-[#D29922]',
         icon: AlertTriangle,
       };
     case 'terminology_inconsistency':
       return {
-        label: 'Glossary Inconsistency',
-        classes: 'bg-purple-950/80 text-purple-300 border-purple-800/60',
+        label: 'GLOSSARY CONFLICT',
+        classes: 'bg-[#5865F2]/20 text-[#5865F2] border-[#5865F2]',
         icon: RefreshCw,
       };
     default:
       return {
-        label: 'Linguistic Drift',
-        classes: 'bg-blue-950/80 text-blue-300 border-blue-800/60',
+        label: 'LINGUISTIC DRIFT',
+        classes: 'bg-[#30363D] text-[#8B949E] border-[#30363D]',
         icon: AlertTriangle,
       };
   }
@@ -40,35 +40,35 @@ export const TranslationIssueCard: React.FC<TranslationIssueCardProps> = ({ issu
   const Icon = badge.icon;
 
   return (
-    <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-4 space-y-3 hover:border-slate-700 transition-colors shadow-md">
+    <div className="bg-[#0D1117] border border-[#30363D] p-3 space-y-2.5 hover:border-[#5865F2] transition-colors font-mono">
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <span className="font-mono text-xs font-semibold text-slate-300 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+        <span className="text-xs font-bold text-[#5865F2] bg-[#161B22] px-2 py-0.5 border border-[#30363D]">
           {issue.key_path}
         </span>
-        <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border ${badge.classes}`}>
-          <Icon className="w-3 h-3" />
+        <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 border ${badge.classes}`}>
+          <Icon className="w-2.5 h-2.5" />
           {badge.label}
         </span>
       </div>
 
-      <div className="text-xs text-rose-300 bg-rose-950/30 p-2.5 rounded-lg border border-rose-900/40">
+      <div className="text-xs text-[#F85149] bg-[#E5534B]/10 p-2 border border-[#E5534B]">
         ⚠️ <strong>Issue:</strong> {issue.message}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-        <div className="bg-slate-900/60 p-2 rounded-lg border border-slate-800">
-          <div className="text-[10px] uppercase font-bold text-slate-500 mb-0.5">Source</div>
-          <div className="text-slate-300">{issue.source_text}</div>
+        <div className="bg-[#161B22] p-2 border border-[#30363D]">
+          <div className="text-[9px] uppercase font-bold text-[#8B949E] mb-0.5">Source</div>
+          <div className="text-[#E6EDF3]">{issue.source_text}</div>
         </div>
-        <div className="bg-slate-900/60 p-2 rounded-lg border border-slate-800">
-          <div className="text-[10px] uppercase font-bold text-slate-500 mb-0.5">Current Translation</div>
-          <div className="text-slate-300">{issue.translated_text}</div>
+        <div className="bg-[#161B22] p-2 border border-[#30363D]">
+          <div className="text-[9px] uppercase font-bold text-[#8B949E] mb-0.5">Current Translation</div>
+          <div className="text-[#E6EDF3]">{issue.translated_text}</div>
         </div>
       </div>
 
       {issue.suggestion && (
-        <div className="text-xs text-emerald-300 bg-emerald-950/30 p-2 rounded-lg border border-emerald-900/40">
-          ✨ <strong>Suggested Fix:</strong> "{issue.suggestion}"
+        <div className="text-xs text-[#56D364] bg-[#3FB950]/10 p-2 border border-[#3FB950]">
+          ✨ <strong>Fix:</strong> "{issue.suggestion}"
         </div>
       )}
     </div>

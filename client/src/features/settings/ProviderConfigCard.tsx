@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Cpu, Sparkles, CheckCircle2, AlertCircle, Loader2, Eye, EyeOff, Radio } from 'lucide-react';
+import { Cpu, Sparkles, CheckCircle2, AlertCircle, Loader2, Eye, EyeOff } from 'lucide-react';
 import { AIProviderType } from '../../types/client_types.ts';
 import { ApiClient } from '../../services/api_client.ts';
 
@@ -70,16 +70,16 @@ export const ProviderConfigCard: React.FC<ProviderConfigCardProps> = ({
   };
 
   return (
-    <div className="bg-slate-950/70 p-4 sm:p-5 rounded-xl border border-slate-800 space-y-4">
+    <div className="bg-[#0D1117] p-3.5 border border-[#30363D] space-y-3 font-mono">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <div className={`p-1.5 rounded-lg ${icon === 'cpu' ? 'bg-indigo-500/20 text-indigo-400' : 'bg-purple-500/20 text-purple-400'}`}>
-            {icon === 'cpu' ? <Cpu className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
+          <div className="p-1 border border-[#30363D] bg-[#161B22] text-[#5865F2]">
+            {icon === 'cpu' ? <Cpu className="w-3.5 h-3.5" /> : <Sparkles className="w-3.5 h-3.5" />}
           </div>
           <div>
-            <h3 className="font-bold text-sm text-slate-200">{title}</h3>
-            <p className="text-[11px] text-slate-400">{subtitle}</p>
+            <h3 className="font-bold text-xs text-[#E6EDF3] uppercase tracking-wider">{title}</h3>
+            <p className="text-[10px] text-[#8B949E]">{subtitle}</p>
           </div>
         </div>
 
@@ -87,21 +87,21 @@ export const ProviderConfigCard: React.FC<ProviderConfigCardProps> = ({
           type="button"
           onClick={handleTest}
           disabled={isTesting}
-          className="px-3 py-1 text-xs font-semibold bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-lg transition-colors flex items-center gap-1.5"
+          className="px-2.5 py-1 text-xs font-bold bg-[#161B22] hover:bg-[#30363D] text-[#E6EDF3] border border-[#30363D] transition-colors flex items-center gap-1"
         >
           {isTesting ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
-          <span>Test & Fetch Models</span>
+          <span>TEST CONNECTION</span>
         </button>
       </div>
 
       {/* Provider Selector Tabs */}
-      <div className="space-y-1.5">
-        <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-          AI Provider
+      <div className="space-y-1">
+        <label className="block text-[10px] font-bold uppercase tracking-wider text-[#8B949E]">
+          AI Provider Architecture
         </label>
         <div className="grid grid-cols-3 gap-2">
           {[
-            { id: 'openai_compatible', label: 'OpenAI / Local / Ollama', desc: 'LM Studio, vLLM, Groq, etc.' },
+            { id: 'openai_compatible', label: 'OpenAI / Local / Ollama', desc: 'LM Studio, vLLM, Groq, DeepSeek' },
             { id: 'gemini', label: 'Google Gemini', desc: 'Official Gemini API' },
             { id: 'anthropic', label: 'Anthropic Claude', desc: 'Official Claude API' },
           ].map((p) => (
@@ -109,14 +109,14 @@ export const ProviderConfigCard: React.FC<ProviderConfigCardProps> = ({
               key={p.id}
               type="button"
               onClick={() => onProviderChange(p.id as AIProviderType)}
-              className={`px-3 py-2 rounded-lg border text-left transition-all ${
+              className={`p-2 border text-left transition-colors ${
                 provider === p.id
-                  ? 'bg-indigo-950/60 border-indigo-500 text-indigo-200 shadow-sm'
-                  : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                  ? 'bg-[#161B22] border-[#5865F2] text-[#E6EDF3]'
+                  : 'bg-[#161B22]/40 border-[#30363D] text-[#8B949E] hover:text-[#E6EDF3]'
               }`}
             >
-              <div className="font-semibold text-xs truncate">{p.label}</div>
-              <div className="text-[10px] text-slate-500 truncate">{p.desc}</div>
+              <div className="font-bold text-xs truncate">{p.label}</div>
+              <div className="text-[9px] text-[#8B949E] truncate">{p.desc}</div>
             </button>
           ))}
         </div>
@@ -124,40 +124,40 @@ export const ProviderConfigCard: React.FC<ProviderConfigCardProps> = ({
 
       {/* Presets for OpenAI Compatible */}
       {provider === 'openai_compatible' && (
-        <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-          <span className="text-slate-500 font-medium mr-1">Presets:</span>
+        <div className="flex flex-wrap items-center gap-1 text-[10px]">
+          <span className="text-[#8B949E] font-bold mr-1">PRESETS:</span>
           <button
             type="button"
             onClick={() => applyPreset({ provider: 'openai_compatible', baseUrl: 'http://localhost:1234/v1', model: 'translategemma-12b-it' })}
-            className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 hover:border-indigo-500 text-slate-300 text-[10px]"
+            className="px-2 py-0.5 bg-[#161B22] border border-[#30363D] hover:border-[#5865F2] text-[#E6EDF3]"
           >
-            LM Studio (Local)
+            LM Studio
           </button>
           <button
             type="button"
             onClick={() => applyPreset({ provider: 'openai_compatible', baseUrl: 'http://localhost:11434/v1', model: 'gemma2:9b' })}
-            className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 hover:border-indigo-500 text-slate-300 text-[10px]"
+            className="px-2 py-0.5 bg-[#161B22] border border-[#30363D] hover:border-[#5865F2] text-[#E6EDF3]"
           >
             Ollama
           </button>
           <button
             type="button"
             onClick={() => applyPreset({ provider: 'openai_compatible', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini' })}
-            className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 hover:border-indigo-500 text-slate-300 text-[10px]"
+            className="px-2 py-0.5 bg-[#161B22] border border-[#30363D] hover:border-[#5865F2] text-[#E6EDF3]"
           >
-            OpenAI (Cloud)
+            OpenAI
           </button>
           <button
             type="button"
             onClick={() => applyPreset({ provider: 'openai_compatible', baseUrl: 'https://api.groq.com/openai/v1', model: 'llama-3.3-70b-versatile' })}
-            className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 hover:border-indigo-500 text-slate-300 text-[10px]"
+            className="px-2 py-0.5 bg-[#161B22] border border-[#30363D] hover:border-[#5865F2] text-[#E6EDF3]"
           >
             Groq (Fast Cloud)
           </button>
           <button
             type="button"
             onClick={() => applyPreset({ provider: 'openai_compatible', baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat' })}
-            className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 hover:border-indigo-500 text-slate-300 text-[10px]"
+            className="px-2 py-0.5 bg-[#161B22] border border-[#30363D] hover:border-[#5865F2] text-[#E6EDF3]"
           >
             DeepSeek
           </button>
@@ -165,11 +165,10 @@ export const ProviderConfigCard: React.FC<ProviderConfigCardProps> = ({
       )}
 
       {/* Input Fields */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-        {/* Base URL (if openai_compatible) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
         {provider === 'openai_compatible' && (
           <div>
-            <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-[#8B949E] mb-1">
               Base URL
             </label>
             <input
@@ -177,15 +176,14 @@ export const ProviderConfigCard: React.FC<ProviderConfigCardProps> = ({
               value={baseUrl}
               onChange={(e) => onBaseUrlChange(e.target.value)}
               placeholder="http://localhost:1234/v1"
-              className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs font-mono text-slate-200 focus:outline-none focus:border-indigo-500"
+              className="w-full bg-[#161B22] border border-[#30363D] px-2.5 py-1.5 text-xs font-mono text-[#E6EDF3] outline-none focus:border-[#5865F2]"
             />
           </div>
         )}
 
-        {/* API Key */}
         <div className={provider === 'openai_compatible' ? '' : 'sm:col-span-1'}>
-          <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
-            API Key / Bearer Token {provider === 'openai_compatible' ? '(Optional for local)' : '(Required)'}
+          <label className="block text-[10px] font-bold uppercase tracking-wider text-[#8B949E] mb-1">
+            API Key / Token {provider === 'openai_compatible' ? '(Optional for local)' : '(Required)'}
           </label>
           <div className="relative">
             <input
@@ -193,45 +191,38 @@ export const ProviderConfigCard: React.FC<ProviderConfigCardProps> = ({
               value={apiKey}
               onChange={(e) => onApiKeyChange(e.target.value)}
               placeholder={provider === 'gemini' ? 'AIzaSy...' : provider === 'anthropic' ? 'sk-ant-api...' : 'sk-... or empty'}
-              className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-3 pr-9 py-2 text-xs font-mono text-slate-200 focus:outline-none focus:border-indigo-500"
+              className="w-full bg-[#161B22] border border-[#30363D] pl-2.5 pr-8 py-1.5 text-xs font-mono text-[#E6EDF3] outline-none focus:border-[#5865F2]"
             />
             <button
               type="button"
               onClick={() => setShowKey(!showKey)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 p-1"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-[#8B949E] hover:text-[#E6EDF3]"
             >
               {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
             </button>
           </div>
         </div>
 
-        {/* Model Name */}
         <div className={provider === 'openai_compatible' ? 'sm:col-span-2' : 'sm:col-span-1'}>
-          <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
-            Model Name
+          <label className="block text-[10px] font-bold uppercase tracking-wider text-[#8B949E] mb-1">
+            Model Identifier
           </label>
           <input
             type="text"
             value={model}
             onChange={(e) => onModelChange(e.target.value)}
-            placeholder={
-              provider === 'gemini'
-                ? 'gemini-2.5-flash'
-                : provider === 'anthropic'
-                ? 'claude-3-5-haiku-20241022'
-                : 'translategemma-12b-it or gpt-4o-mini'
-            }
-            className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs font-mono text-slate-200 focus:outline-none focus:border-indigo-500"
+            placeholder="translategemma-12b-it or gpt-4o-mini"
+            className="w-full bg-[#161B22] border border-[#30363D] px-2.5 py-1.5 text-xs font-mono text-[#E6EDF3] outline-none focus:border-[#5865F2]"
           />
         </div>
       </div>
 
-      {/* Temperature Slider if provided */}
+      {/* Temperature Slider */}
       {onTemperatureChange && typeof temperature === 'number' && (
         <div>
-          <div className="flex justify-between text-[11px] text-slate-400 mb-1">
-            <span className="font-semibold uppercase tracking-wider">Temperature ({temperature})</span>
-            <span className="text-slate-500">{temperature < 0.3 ? 'Deterministic & Accurate' : 'Creative & Dynamic'}</span>
+          <div className="flex justify-between text-[10px] text-[#8B949E] mb-1">
+            <span className="font-bold uppercase tracking-wider">Temperature ({temperature})</span>
+            <span>{temperature < 0.3 ? 'Deterministic' : 'Creative'}</span>
           </div>
           <input
             type="range"
@@ -240,7 +231,7 @@ export const ProviderConfigCard: React.FC<ProviderConfigCardProps> = ({
             step="0.05"
             value={temperature}
             onChange={(e) => onTemperatureChange(parseFloat(e.target.value))}
-            className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+            className="w-full h-1 bg-[#161B22] border border-[#30363D] appearance-none cursor-pointer accent-[#5865F2]"
           />
         </div>
       )}
@@ -248,36 +239,15 @@ export const ProviderConfigCard: React.FC<ProviderConfigCardProps> = ({
       {/* Test Result Feedback */}
       {testResult && (
         <div
-          className={`p-3 rounded-lg text-xs flex items-start gap-2 border ${
+          className={`p-2.5 text-xs flex items-start gap-2 border ${
             testResult.success
-              ? 'bg-emerald-950/40 border-emerald-800/60 text-emerald-300'
-              : 'bg-rose-950/40 border-rose-800/60 text-rose-300'
+              ? 'bg-[#3FB950]/10 border-[#3FB950] text-[#56D364]'
+              : 'bg-[#E5534B]/10 border-[#E5534B] text-[#F85149]'
           }`}
         >
           {testResult.success ? <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" /> : <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />}
           <div className="min-w-0 flex-1">
-            <div className="font-semibold break-words">{testResult.message}</div>
-            {testResult.models?.length > 0 && (
-              <div className="mt-2">
-                <div className="text-[10px] text-slate-400 mb-1">Available Models (Click to select):</div>
-                <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
-                  {testResult.models.map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => onModelChange(m)}
-                      className={`px-2 py-0.5 rounded border text-[10px] font-mono transition-colors ${
-                        model === m
-                          ? 'bg-indigo-600 text-white border-indigo-400'
-                          : 'bg-slate-900 border-slate-700 text-slate-300 hover:border-indigo-400'
-                      }`}
-                    >
-                      {m}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+            <div className="font-bold break-words">{testResult.message}</div>
           </div>
         </div>
       )}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Settings, Sliders, MessageSquareCode, User as UserIcon, Globe } from 'lucide-react';
+import { X, Settings, Sliders, MessageSquareCode, User as UserIcon, Globe, Terminal } from 'lucide-react';
 import { ApiClient } from '../../services/api_client.ts';
 import { SystemSettings } from '../../types/client_types.ts';
 import { ProviderConfigCard } from './ProviderConfigCard.tsx';
@@ -68,77 +68,41 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-3xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150 my-8">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 font-mono overflow-y-auto">
+      <div className="bg-[#161B22] border border-[#30363D] w-full max-w-3xl overflow-hidden shadow-none my-8">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950/40">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-indigo-600/20 text-indigo-400 flex items-center justify-center">
-              <Settings className="w-5 h-5" />
-            </div>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[#30363D] bg-[#10141D]">
+          <div className="flex items-center gap-2">
+            <Terminal className="w-4 h-4 text-[#5865F2]" />
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="font-bold text-base text-slate-100">AI & System Configuration</h2>
+                <h2 className="font-bold text-xs uppercase tracking-wider text-[#E6EDF3]">System Configuration</h2>
                 {user ? (
-                  <span className="text-[10px] bg-indigo-950/80 text-indigo-300 border border-indigo-800 px-2 py-0.5 rounded font-mono flex items-center gap-1">
-                    <UserIcon className="w-3 h-3" />
-                    <span>Personal Profile: @{user.username}</span>
+                  <span className="text-[10px] bg-[#5865F2]/20 text-[#5865F2] border border-[#5865F2]/40 px-1.5 py-0.2 font-mono">
+                    @{user.username}
                   </span>
                 ) : (
-                  <span className="text-[10px] bg-slate-800 text-slate-400 border border-slate-700 px-2 py-0.5 rounded font-mono flex items-center gap-1">
-                    <Globe className="w-3 h-3" />
-                    <span>Global Defaults</span>
+                  <span className="text-[10px] bg-[#30363D] text-[#8B949E] px-1.5 py-0.2 font-mono">
+                    GLOBAL
                   </span>
                 )}
               </div>
-              <p className="text-xs text-slate-400">Configure your personal AI providers, model preferences, and execution limits</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-200 p-1 rounded-lg">
-            <X className="w-5 h-5" />
+          <button onClick={onClose} className="text-[#8B949E] hover:text-[#E6EDF3] p-1">
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Admin Scope Toggle */}
-        {user?.role === 'admin' && (
-          <div className="bg-slate-950/60 border-b border-slate-800 px-6 py-2 flex items-center justify-between text-xs">
-            <span className="text-slate-400">Target Configuration Scope:</span>
-            <div className="flex items-center gap-1 bg-slate-900 p-0.5 rounded-lg border border-slate-800">
-              <button
-                type="button"
-                onClick={() => setSaveScope('user')}
-                className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all ${
-                  saveScope === 'user'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                My User Account
-              </button>
-              <button
-                type="button"
-                onClick={() => setSaveScope('system')}
-                className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all ${
-                  saveScope === 'system'
-                    ? 'bg-rose-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                Server Global Defaults
-              </button>
-            </div>
-          </div>
-        )}
-
         {/* Tab Navigation */}
-        <div className="flex border-b border-slate-800 px-6 bg-slate-950/20">
+        <div className="flex items-center border-b border-[#30363D] bg-[#0D1117] px-2 pt-1 gap-1">
           <button
             type="button"
             onClick={() => setActiveTab('translation')}
-            className={`py-3 px-4 text-xs font-semibold border-b-2 transition-all ${
+            className={`px-3 py-1.5 text-xs font-bold border-t border-x transition-colors ${
               activeTab === 'translation'
-                ? 'border-indigo-500 text-indigo-300'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
+                ? 'bg-[#161B22] text-[#E6EDF3] border-[#30363D]'
+                : 'border-transparent text-[#8B949E] hover:text-[#E6EDF3]'
             }`}
           >
             1. Translation Engine
@@ -146,10 +110,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           <button
             type="button"
             onClick={() => setActiveTab('qa')}
-            className={`py-3 px-4 text-xs font-semibold border-b-2 transition-all ${
+            className={`px-3 py-1.5 text-xs font-bold border-t border-x transition-colors ${
               activeTab === 'qa'
-                ? 'border-purple-500 text-purple-300'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
+                ? 'bg-[#161B22] text-[#E6EDF3] border-[#30363D]'
+                : 'border-transparent text-[#8B949E] hover:text-[#E6EDF3]'
             }`}
           >
             2. QA & Glossary Inspector
@@ -157,22 +121,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           <button
             type="button"
             onClick={() => setActiveTab('performance')}
-            className={`py-3 px-4 text-xs font-semibold border-b-2 transition-all ${
+            className={`px-3 py-1.5 text-xs font-bold border-t border-x transition-colors ${
               activeTab === 'performance'
-                ? 'border-emerald-500 text-emerald-300'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
+                ? 'bg-[#161B22] text-[#E6EDF3] border-[#30363D]'
+                : 'border-transparent text-[#8B949E] hover:text-[#E6EDF3]'
             }`}
           >
             3. Tuning & Rules
           </button>
         </div>
 
-        {/* Modal Form Content */}
-        <form onSubmit={handleSave} className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+        <form onSubmit={handleSave} className="p-4 space-y-4 max-h-[75vh] overflow-y-auto text-xs">
           {activeTab === 'translation' && (
             <ProviderConfigCard
-              title="Translation Engine"
-              subtitle="Primary model used for translating game text strings and dialogue"
+              title="Primary Translation Engine"
+              subtitle="Generates localized game strings (LM Studio, Ollama, OpenAI, Claude, Groq, DeepSeek)"
               icon="cpu"
               provider={settings.translation_provider}
               baseUrl={settings.translation_base_url}
@@ -180,8 +143,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               model={settings.translation_model}
               temperature={settings.translation_temperature}
               onProviderChange={(p) => setSettings({ ...settings, translation_provider: p })}
-              onBaseUrlChange={(url) => setSettings({ ...settings, translation_base_url: url })}
-              onApiKeyChange={(key) => setSettings({ ...settings, translation_api_key: key })}
+              onBaseUrlChange={(u) => setSettings({ ...settings, translation_base_url: u })}
+              onApiKeyChange={(k) => setSettings({ ...settings, translation_api_key: k })}
               onModelChange={(m) => setSettings({ ...settings, translation_model: m })}
               onTemperatureChange={(t) => setSettings({ ...settings, translation_temperature: t })}
             />
@@ -189,77 +152,113 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
           {activeTab === 'qa' && (
             <ProviderConfigCard
-              title="QA & Glossary Inspector"
-              subtitle="Audits translations for consistency, broken placeholders, and extracts glossary terms"
+              title="QA & Glossary Inspector Engine"
+              subtitle="Audits translations for consistency and mines key terminology"
               icon="sparkles"
               provider={settings.qa_provider}
               baseUrl={settings.qa_base_url}
               apiKey={settings.qa_api_key}
               model={settings.qa_model}
               onProviderChange={(p) => setSettings({ ...settings, qa_provider: p })}
-              onBaseUrlChange={(url) => setSettings({ ...settings, qa_base_url: url })}
-              onApiKeyChange={(key) => setSettings({ ...settings, qa_api_key: key })}
+              onBaseUrlChange={(u) => setSettings({ ...settings, qa_base_url: u })}
+              onApiKeyChange={(k) => setSettings({ ...settings, qa_api_key: k })}
               onModelChange={(m) => setSettings({ ...settings, qa_model: m })}
             />
           )}
 
           {activeTab === 'performance' && (
-            <div className="space-y-5">
-              <div className="bg-slate-950/70 p-5 rounded-xl border border-slate-800 space-y-4">
-                <div className="flex items-center gap-2 font-bold text-sm text-slate-200">
-                  <Sliders className="w-4 h-4 text-emerald-400" />
-                  <span>Batch Queue Concurrency</span>
-                </div>
+            <div className="space-y-3.5 bg-[#0D1117] p-4 border border-[#30363D]">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <div className="flex justify-between text-xs text-slate-400 mb-1.5">
-                    <span>Concurrent Workers: <strong className="text-emerald-400 font-mono">{settings.batch_concurrency}</strong></span>
-                    <span className="text-slate-500 text-[11px]">{settings.batch_concurrency === 1 ? '1 request at a time (Best for local GPUs)' : `${settings.batch_concurrency} parallel requests (Best for cloud APIs)`}</span>
-                  </div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-[#8B949E] mb-1">
+                    Batch Queue Concurrency
+                  </label>
                   <input
-                    type="range"
+                    type="number"
                     min="1"
                     max="10"
-                    step="1"
                     value={settings.batch_concurrency}
-                    onChange={(e) => setSettings({ ...settings, batch_concurrency: parseInt(e.target.value, 10) })}
-                    className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                    onChange={(e) => setSettings({ ...settings, batch_concurrency: parseInt(e.target.value) || 1 })}
+                    className="w-full bg-[#161B22] border border-[#30363D] px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:border-[#5865F2]"
                   />
+                  <p className="text-[10px] text-[#8B949E] mt-1">Recommended: 1-2 for local LLMs; 3-5 for Cloud APIs.</p>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-[#8B949E] mb-1">
+                    Request Timeout (ms)
+                  </label>
+                  <input
+                    type="number"
+                    step="5000"
+                    min="10000"
+                    max="300000"
+                    value={settings.request_timeout_ms}
+                    onChange={(e) => setSettings({ ...settings, request_timeout_ms: parseInt(e.target.value) || 60000 })}
+                    className="w-full bg-[#161B22] border border-[#30363D] px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:border-[#5865F2]"
+                  />
+                  <p className="text-[10px] text-[#8B949E] mt-1">Default 60000ms (1 minute per key call).</p>
                 </div>
               </div>
 
-              <div className="bg-slate-950/70 p-5 rounded-xl border border-slate-800 space-y-3">
-                <div className="flex items-center gap-2 font-bold text-sm text-slate-200">
-                  <MessageSquareCode className="w-4 h-4 text-indigo-400" />
-                  <span>Global System Instructions</span>
-                </div>
-                <p className="text-xs text-slate-400">
-                  Custom instructions injected into every translation prompt.
-                </p>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#8B949E] mb-1">
+                  Global System Instructions (Appended to all prompts)
+                </label>
                 <textarea
-                  rows={4}
+                  rows={3}
                   value={settings.custom_system_prompt || ''}
                   onChange={(e) => setSettings({ ...settings, custom_system_prompt: e.target.value })}
-                  placeholder="e.g. Always use standard gaming industry terminology."
-                  className="w-full bg-slate-900 border border-slate-800 rounded-lg p-3 text-xs font-mono text-slate-200 focus:outline-none focus:border-indigo-500"
+                  placeholder="e.g. Always use standard video game terminology for UI buttons; keep tone formal..."
+                  className="w-full bg-[#161B22] border border-[#30363D] p-2.5 text-xs text-[#E6EDF3] outline-none focus:border-[#5865F2]"
                 />
               </div>
             </div>
           )}
 
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+          {/* Admin Scope Selector */}
+          {user?.role === 'admin' && (
+            <div className="bg-[#10141D] p-3 border border-[#30363D] flex items-center justify-between">
+              <div>
+                <div className="text-xs font-bold text-[#E6EDF3]">Save Scope</div>
+                <div className="text-[10px] text-[#8B949E]">Apply to your account only or set system-wide server defaults</div>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setSaveScope('user')}
+                  className={`px-2.5 py-1 text-xs font-bold border transition-colors ${
+                    saveScope === 'user' ? 'bg-[#5865F2] text-white border-[#5865F2]' : 'bg-[#0D1117] text-[#8B949E] border-[#30363D]'
+                  }`}
+                >
+                  MY PROFILE
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSaveScope('system')}
+                  className={`px-2.5 py-1 text-xs font-bold border transition-colors ${
+                    saveScope === 'system' ? 'bg-[#3FB950] text-slate-950 border-[#3FB950]' : 'bg-[#0D1117] text-[#8B949E] border-[#30363D]'
+                  }`}
+                >
+                  GLOBAL SERVER
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#30363D]">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+              className="px-3 py-1.5 text-xs text-[#8B949E] hover:text-[#E6EDF3] border border-[#30363D] bg-[#0D1117]"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSaving}
-              className="px-6 py-2 rounded-lg text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition-colors shadow-md shadow-indigo-600/20"
+              className="px-4 py-1.5 text-xs font-bold bg-[#5865F2] hover:bg-[#4C6EF5] text-white border border-[#5865F2] transition-colors disabled:opacity-50"
             >
-              {isSaving ? 'Saving...' : user?.role === 'admin' && saveScope === 'system' ? 'Save System Defaults' : 'Save User Settings'}
+              {isSaving ? 'Saving...' : 'Save Configuration'}
             </button>
           </div>
         </form>

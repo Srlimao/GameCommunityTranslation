@@ -78,29 +78,27 @@ export const LanguageSelectorModal: React.FC<LanguageSelectorModalProps> = ({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950/40">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-indigo-600/20 text-indigo-400 flex items-center justify-center">
-              <Globe2 className="w-5 h-5" />
-            </div>
-            <h2 className="font-bold text-lg text-slate-100">Add Target Language</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 font-mono">
+      <div className="bg-[#161B22] border border-[#30363D] w-full max-w-lg overflow-hidden shadow-none">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[#30363D] bg-[#10141D]">
+          <div className="flex items-center gap-2">
+            <Globe2 className="w-4 h-4 text-[#5865F2]" />
+            <h2 className="font-bold text-xs uppercase tracking-wider text-[#E6EDF3]">Add Target Language</h2>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-200 p-1 rounded-lg">
-            <X className="w-5 h-5" />
+          <button onClick={onClose} className="text-[#8B949E] hover:text-[#E6EDF3] p-1">
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="p-6 space-y-4">
+        <div className="p-4 space-y-3.5 text-xs">
           {error && (
-            <div className="p-3 rounded-lg bg-rose-950/50 border border-rose-800/60 text-rose-300 text-sm">
+            <div className="p-2.5 bg-[#E5534B]/10 border border-[#E5534B] text-[#F85149]">
               {error}
             </div>
           )}
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-[#8B949E] mb-1">
               Popular Presets
             </label>
             <input
@@ -108,18 +106,18 @@ export const LanguageSelectorModal: React.FC<LanguageSelectorModalProps> = ({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search presets (e.g. Spanish, German, ja-JP)..."
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 mb-2"
+              className="w-full bg-[#0D1117] border border-[#30363D] px-2.5 py-1 text-xs text-[#E6EDF3] outline-none focus:border-[#5865F2] mb-2"
             />
-            <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-1 bg-slate-950/60 rounded-lg border border-slate-800/80">
+            <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto p-1.5 bg-[#0D1117] border border-[#30363D]">
               {filteredPresets.map((p) => (
                 <button
                   key={p.code}
                   type="button"
                   onClick={() => handleSelectPreset(p)}
-                  className={`text-xs px-2.5 py-1 rounded-md transition-colors font-medium ${
+                  className={`text-[11px] px-2 py-0.5 border transition-colors font-bold ${
                     code === p.code
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'
+                      ? 'bg-[#5865F2] text-white border-[#5865F2]'
+                      : 'bg-[#161B22] text-[#8B949E] hover:text-[#E6EDF3] border-[#30363D]'
                   }`}
                 >
                   {p.name} ({p.code})
@@ -128,10 +126,10 @@ export const LanguageSelectorModal: React.FC<LanguageSelectorModalProps> = ({
             </div>
           </div>
 
-          <form onSubmit={handleAdd} className="space-y-4 pt-2">
-            <div className="grid grid-cols-2 gap-3">
+          <form onSubmit={handleAdd} className="space-y-3 pt-1">
+            <div className="grid grid-cols-2 gap-2.5">
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#8B949E] mb-1">
                   Language Code *
                 </label>
                 <input
@@ -140,11 +138,11 @@ export const LanguageSelectorModal: React.FC<LanguageSelectorModalProps> = ({
                   onChange={(e) => setCode(e.target.value)}
                   placeholder="e.g. es-ES"
                   required
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-100 font-mono focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-[#0D1117] border border-[#30363D] px-3 py-1.5 text-xs text-[#E6EDF3] font-mono outline-none focus:border-[#5865F2]"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#8B949E] mb-1">
                   Language Name *
                 </label>
                 <input
@@ -153,25 +151,25 @@ export const LanguageSelectorModal: React.FC<LanguageSelectorModalProps> = ({
                   onChange={(e) => setName(e.target.value)}
                   placeholder="e.g. Spanish (Spain)"
                   required
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-[#0D1117] border border-[#30363D] px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:border-[#5865F2]"
                 />
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+            <div className="flex items-center justify-end gap-2 pt-2.5 border-t border-[#30363D]">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+                className="px-3 py-1.5 text-xs text-[#8B949E] hover:text-[#E6EDF3] border border-[#30363D] bg-[#0D1117]"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isLoading || !code.trim() || !name.trim()}
-                className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition-colors disabled:opacity-50 shadow-md shadow-indigo-600/20"
+                className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold bg-[#5865F2] hover:bg-[#4C6EF5] text-white border border-[#5865F2] transition-colors disabled:opacity-50"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-3.5 h-3.5" />
                 <span>{isLoading ? 'Adding...' : 'Add Language'}</span>
               </button>
             </div>

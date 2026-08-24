@@ -15,7 +15,6 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // New user form state
   const [newUsername, setNewUsername] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newRole, setNewRole] = useState<UserRole>('translator');
@@ -70,7 +69,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
   };
 
   const handleDeleteUser = async (userId: string) => {
-    if (!confirm('Are you sure you want to delete this user?')) return;
+    if (!confirm('Delete this user?')) return;
     try {
       await AuthApi.deleteUser(userId);
       await loadUsers();
@@ -80,42 +79,40 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150 my-8">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950/50">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 font-mono overflow-y-auto">
+      <div className="bg-[#161B22] border border-[#30363D] w-full max-w-2xl overflow-hidden shadow-none my-8">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[#30363D] bg-[#10141D]">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-indigo-600/20 text-indigo-400 flex items-center justify-center">
-              <Users className="w-5 h-5" />
-            </div>
-            <h2 className="font-bold text-base text-slate-100">Team & User Management</h2>
+            <Users className="w-4 h-4 text-[#5865F2]" />
+            <h2 className="font-bold text-xs uppercase tracking-wider text-[#E6EDF3]">User Management</h2>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-200 p-1 rounded-lg">
-            <X className="w-5 h-5" />
+          <button onClick={onClose} className="text-[#8B949E] hover:text-[#E6EDF3] p-1">
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
+        <div className="p-4 space-y-4 max-h-[75vh] overflow-y-auto text-xs">
           {error && (
-            <div className="p-3 rounded-lg bg-rose-950/40 border border-rose-800/60 text-rose-300 text-xs flex items-start gap-2">
+            <div className="p-2.5 bg-[#E5534B]/10 border border-[#E5534B] text-[#F85149] flex items-start gap-2">
               <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
           {/* Create User Form */}
-          <form onSubmit={handleCreateUser} className="bg-slate-950/70 p-4 rounded-xl border border-slate-800 space-y-3">
-            <div className="font-bold text-xs uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
+          <form onSubmit={handleCreateUser} className="bg-[#0D1117] p-3 border border-[#30363D] space-y-2.5">
+            <div className="font-bold text-[10px] uppercase tracking-wider text-[#5865F2] flex items-center gap-1.5">
               <UserPlus className="w-3.5 h-3.5" />
-              <span>Add New Collaborator</span>
+              <span>Add Collaborator</span>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <input
                 type="text"
                 required
                 placeholder="Username"
                 value={newUsername}
                 onChange={(e) => setNewUsername(e.target.value)}
-                className="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-mono"
+                className="bg-[#161B22] border border-[#30363D] px-2 py-1 text-xs text-[#E6EDF3] outline-none focus:border-[#5865F2]"
               />
               <input
                 type="password"
@@ -123,21 +120,21 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
                 placeholder="Password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-mono"
+                className="bg-[#161B22] border border-[#30363D] px-2 py-1 text-xs text-[#E6EDF3] outline-none focus:border-[#5865F2]"
               />
               <input
                 type="text"
                 placeholder="Display Name"
                 value={newDisplayName}
                 onChange={(e) => setNewDisplayName(e.target.value)}
-                className="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                className="bg-[#161B22] border border-[#30363D] px-2 py-1 text-xs text-[#E6EDF3] outline-none focus:border-[#5865F2]"
               />
             </div>
             <div className="flex justify-end">
               <button
                 type="submit"
                 disabled={isCreating}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition-colors flex items-center gap-1.5"
+                className="px-3 py-1 text-xs font-bold bg-[#5865F2] hover:bg-[#4C6EF5] text-white border border-[#5865F2] transition-colors flex items-center gap-1"
               >
                 {isCreating ? <Loader2 className="w-3 h-3 animate-spin" /> : <UserPlus className="w-3 h-3" />}
                 <span>Add User</span>
@@ -147,22 +144,22 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
 
           {/* User List */}
           <div className="space-y-2">
-            <div className="font-bold text-xs uppercase tracking-wider text-slate-400">Current Users ({users.length})</div>
+            <div className="font-bold text-[10px] uppercase tracking-wider text-[#8B949E]">Current Users ({users.length})</div>
             {isLoading ? (
-              <div className="py-6 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+              <div className="py-4 text-center text-xs text-[#8B949E] flex items-center justify-center gap-2">
                 <Loader2 className="w-4 h-4 animate-spin" />
                 <span>Loading users...</span>
               </div>
             ) : (
-              <div className="divide-y divide-slate-800/60 border border-slate-800 rounded-xl bg-slate-950/40 overflow-hidden">
+              <div className="divide-y divide-[#30363D] border border-[#30363D] bg-[#0D1117]">
                 {users.map((u) => (
-                  <div key={u.id} className="p-3 flex items-center justify-between gap-3 text-xs">
+                  <div key={u.id} className="p-2.5 flex items-center justify-between gap-2 text-xs">
                     <div className="min-w-0 flex-1">
-                      <div className="font-semibold text-slate-200 flex items-center gap-2">
+                      <div className="font-bold text-[#E6EDF3] flex items-center gap-2">
                         <span>{u.display_name || u.username}</span>
-                        <span className="text-[10px] text-slate-500 font-mono">@{u.username}</span>
+                        <span className="text-[10px] text-[#8B949E]">@{u.username}</span>
                       </div>
-                      <div className="text-[10px] text-slate-500">Joined: {new Date(u.created_at).toLocaleDateString()}</div>
+                      <div className="text-[10px] text-[#8B949E]">Joined: {new Date(u.created_at).toLocaleDateString()}</div>
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -170,7 +167,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
                         value={u.role}
                         disabled={u.id === currentUser?.id}
                         onChange={(e) => handleRoleChange(u.id, e.target.value as UserRole)}
-                        className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-[11px] text-slate-300 font-mono focus:outline-none focus:border-indigo-500"
+                        className="bg-[#161B22] border border-[#30363D] px-2 py-0.5 text-[11px] text-[#E6EDF3] outline-none"
                       >
                         <option value="admin">Admin</option>
                         <option value="translator">Translator</option>
@@ -181,7 +178,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
                         <button
                           type="button"
                           onClick={() => handleDeleteUser(u.id)}
-                          className="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-rose-950/30 transition-colors"
+                          className="p-1 text-[#8B949E] hover:text-[#E5534B] transition-colors"
                           title="Delete User"
                         >
                           <Trash2 className="w-3.5 h-3.5" />

@@ -164,60 +164,57 @@ export const JsonImportModal: React.FC<JsonImportModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-3xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150 my-8">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950/40">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center">
-              <FileCode className="w-5 h-5" />
-            </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 font-mono overflow-y-auto">
+      <div className="bg-[#161B22] border border-[#30363D] w-full max-w-3xl overflow-hidden shadow-none my-8">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[#30363D] bg-[#10141D]">
+          <div className="flex items-center gap-2">
+            <FileCode className="w-4 h-4 text-[#5865F2]" />
             <div>
-              <h2 className="font-bold text-lg text-slate-100">
+              <h2 className="font-bold text-xs uppercase tracking-wider text-[#E6EDF3]">
                 {step === 'input' ? 'Import Base Reference JSON' : 'Schema & Key Mapping'}
               </h2>
-              <p className="text-xs text-slate-400">Game: {gameName}</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-200 p-1 rounded-lg">
-            <X className="w-5 h-5" />
+          <button onClick={onClose} className="text-[#8B949E] hover:text-[#E6EDF3] p-1">
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+        <div className="p-4 space-y-4 max-h-[75vh] overflow-y-auto text-xs">
           {error && (
-            <div className="p-3 rounded-lg bg-rose-950/50 border border-rose-800/60 text-rose-300 text-sm flex items-center gap-2">
+            <div className="p-2.5 bg-[#E5534B]/10 border border-[#E5534B] text-[#F85149] flex items-center gap-2">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
           {successMessage && (
-            <div className="p-3 rounded-lg bg-emerald-950/50 border border-emerald-800/60 text-emerald-300 text-sm flex items-center gap-2">
+            <div className="p-2.5 bg-[#3FB950]/10 border border-[#3FB950] text-[#56D364] flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
               <span>{successMessage}</span>
             </div>
           )}
 
           {step === 'input' ? (
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#8B949E] mb-1">
                   Upload JSON File
                 </label>
-                <label className="flex flex-col items-center justify-center border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-xl p-5 cursor-pointer bg-slate-950/50 transition-colors">
-                  <Upload className="w-6 h-6 text-slate-400 mb-2" />
-                  <span className="text-sm font-medium text-slate-300">Click to browse or drop JSON file</span>
-                  <span className="text-xs text-slate-500 mt-0.5">Supports any structure: array of dialogue objects, item lists, or nested trees</span>
+                <label className="flex flex-col items-center justify-center border border-dashed border-[#30363D] hover:border-[#5865F2] p-4 cursor-pointer bg-[#0D1117] transition-colors">
+                  <Upload className="w-5 h-5 text-[#8B949E] mb-1" />
+                  <span className="text-xs font-bold text-[#E6EDF3]">Click to browse or drop JSON file</span>
+                  <span className="text-[10px] text-[#8B949E] mt-0.5">Supports dialogue arrays, object records, or nested trees</span>
                   <input type="file" accept=".json" onChange={handleFileUpload} className="hidden" />
                 </label>
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-[#8B949E]">
                     Or Paste JSON Content
                   </label>
-                  <span className="text-xs text-slate-500">{jsonText.length} characters</span>
+                  <span className="text-[10px] text-[#8B949E]">{jsonText.length} chars</span>
                 </div>
                 <textarea
                   rows={8}
@@ -227,13 +224,13 @@ export const JsonImportModal: React.FC<JsonImportModalProps> = ({
                     setError(null);
                   }}
                   placeholder='[ { "id": "quest_01", "speaker": "Elder", "text": "Take this sword.", "audio_id": 101 } ]'
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-mono transition-colors"
+                  className="w-full bg-[#0D1117] border border-[#30363D] p-2.5 text-xs text-[#E6EDF3] focus:border-[#5865F2] font-mono outline-none"
                 />
               </div>
             </div>
           ) : (
             analysis && (
-              <div className="space-y-5">
+              <div className="space-y-4">
                 <JsonSchemaMappingStep
                   analysis={analysis}
                   schemaConfig={schemaConfig}
@@ -246,21 +243,21 @@ export const JsonImportModal: React.FC<JsonImportModalProps> = ({
           )}
 
           {/* Action Footer */}
-          <div className="flex items-center justify-between pt-4 border-t border-slate-800">
+          <div className="flex items-center justify-between pt-3 border-t border-[#30363D]">
             {step === 'mapping' ? (
               <button
                 type="button"
                 onClick={() => setStep('input')}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+                className="flex items-center gap-1 px-3 py-1.5 text-xs text-[#8B949E] hover:text-[#E6EDF3] border border-[#30363D] bg-[#0D1117]"
               >
-                <ArrowLeft className="w-4 h-4" />
+                <ArrowLeft className="w-3.5 h-3.5" />
                 <span>Back to JSON Input</span>
               </button>
             ) : (
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+                className="px-3 py-1.5 text-xs text-[#8B949E] hover:text-[#E6EDF3] border border-[#30363D] bg-[#0D1117]"
               >
                 Cancel
               </button>
@@ -271,20 +268,20 @@ export const JsonImportModal: React.FC<JsonImportModalProps> = ({
                 type="button"
                 onClick={handleAnalyzeAndProceed}
                 disabled={isLoading || !jsonText.trim()}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition-colors disabled:opacity-50 shadow-md shadow-indigo-600/20"
+                className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold bg-[#5865F2] hover:bg-[#4C6EF5] text-white border border-[#5865F2] transition-colors disabled:opacity-50"
               >
-                {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
                 <span>Next: Configure Structure & Mapping</span>
-                <ArrowRight className="w-4 h-4" />
+                <ArrowRight className="w-3.5 h-3.5" />
               </button>
             ) : (
               <button
                 type="button"
                 onClick={handleConfirmImport}
                 disabled={isLoading || schemaConfig.textFields.length === 0}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition-colors disabled:opacity-50 shadow-md shadow-indigo-600/20"
+                className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold bg-[#5865F2] hover:bg-[#4C6EF5] text-white border border-[#5865F2] transition-colors disabled:opacity-50"
               >
-                {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
                 <span>Confirm & Import Keys</span>
               </button>
             )}

@@ -37,34 +37,32 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-150">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 font-mono">
+      <div className="bg-[#161B22] border border-[#30363D] w-full max-w-md overflow-hidden shadow-none">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950/50">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[#30363D] bg-[#10141D]">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-indigo-600/20 text-indigo-400 flex items-center justify-center">
-              <Lock className="w-4 h-4" />
-            </div>
-            <h2 className="font-bold text-base text-slate-100">
+            <Lock className="w-4 h-4 text-[#5865F2]" />
+            <h2 className="font-bold text-xs uppercase tracking-wider text-[#E6EDF3]">
               {mode === 'login' ? 'Sign In' : 'Create Account'}
             </h2>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-200 p-1 rounded-lg">
-            <X className="w-5 h-5" />
+          <button onClick={onClose} className="text-[#8B949E] hover:text-[#E6EDF3] p-1">
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-4 space-y-3.5 text-xs">
           {error && (
-            <div className="p-3 rounded-lg bg-rose-950/40 border border-rose-800/60 text-rose-300 text-xs flex items-start gap-2">
+            <div className="p-2.5 bg-[#E5534B]/10 border border-[#E5534B] text-[#F85149] flex items-start gap-2">
               <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-[#8B949E] mb-1">
               Username
             </label>
             <div className="relative">
@@ -74,15 +72,15 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="e.g. admin or translator_alex"
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-mono"
+                className="w-full bg-[#0D1117] border border-[#30363D] pl-8 pr-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:border-[#5865F2]"
               />
-              <UserIcon className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+              <UserIcon className="w-3.5 h-3.5 text-[#8B949E] absolute left-2.5 top-1/2 -translate-y-1/2" />
             </div>
           </div>
 
           {mode === 'register' && (
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-[#8B949E] mb-1">
                 Display Name (Optional)
               </label>
               <input
@@ -90,13 +88,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="e.g. Alex (Localization Lead)"
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                className="w-full bg-[#0D1117] border border-[#30363D] px-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:border-[#5865F2]"
               />
             </div>
           )}
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-[#8B949E] mb-1">
               Password
             </label>
             <div className="relative">
@@ -106,13 +104,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                className="w-full bg-[#0D1117] border border-[#30363D] pl-8 pr-3 py-1.5 text-xs text-[#E6EDF3] outline-none focus:border-[#5865F2]"
               />
-              <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Lock className="w-3.5 h-3.5 text-[#8B949E] absolute left-2.5 top-1/2 -translate-y-1/2" />
             </div>
             {mode === 'login' && (
-              <p className="text-[11px] text-slate-500 mt-1">
-                Default credentials: username <span className="font-mono text-slate-400">admin</span> / password <span className="font-mono text-slate-400">admin123</span>
+              <p className="text-[10px] text-[#8B949E] mt-1">
+                Default: <span className="text-[#E6EDF3]">admin</span> / <span className="text-[#E6EDF3]">admin123</span>
               </p>
             )}
           </div>
@@ -120,26 +118,26 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full py-2.5 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/20 transition-colors flex items-center justify-center gap-2 mt-2"
+            className="w-full py-2 text-xs font-bold bg-[#5865F2] hover:bg-[#4C6EF5] text-white border border-[#5865F2] transition-colors flex items-center justify-center gap-1.5 mt-2"
           >
             {isSubmitting ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
             ) : mode === 'login' ? (
-              <LogIn className="w-4 h-4" />
+              <LogIn className="w-3.5 h-3.5" />
             ) : (
-              <UserPlus className="w-4 h-4" />
+              <UserPlus className="w-3.5 h-3.5" />
             )}
             <span>{mode === 'login' ? 'Sign In' : 'Register Account'}</span>
           </button>
 
-          <div className="pt-3 border-t border-slate-800 text-center">
+          <div className="pt-2.5 border-t border-[#30363D] text-center">
             <button
               type="button"
               onClick={() => {
                 setMode(mode === 'login' ? 'register' : 'login');
                 setError(null);
               }}
-              className="text-xs text-indigo-400 hover:text-indigo-300 font-medium transition-colors"
+              className="text-[11px] text-[#5865F2] hover:underline"
             >
               {mode === 'login' ? "Don't have an account? Register" : 'Already have an account? Sign in'}
             </button>

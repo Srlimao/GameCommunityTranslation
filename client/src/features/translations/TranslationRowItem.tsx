@@ -68,47 +68,47 @@ export const TranslationRowItem: React.FC<TranslationRowItemProps> = ({
     switch (item.status) {
       case 'approved':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-950/80 text-emerald-300 border border-emerald-800/80">
-            <CheckCheck className="w-3 h-3" /> Approved
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-bold font-mono bg-[#3FB950]/20 text-[#56D364] border border-[#3FB950]">
+            <CheckCheck className="w-3.5 h-3.5" /> APPROVED
           </span>
         );
       case 'ai_translated':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-purple-950/80 text-purple-300 border border-purple-800/80">
-            <Sparkles className="w-3 h-3" /> AI
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-bold font-mono bg-[#5865F2]/20 text-[#5865F2] border border-[#5865F2]">
+            <Sparkles className="w-3.5 h-3.5" /> AI
           </span>
         );
       case 'manual_translated':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-cyan-950/80 text-cyan-300 border border-cyan-800/80">
-            Manual
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-bold font-mono bg-[#56D364]/10 text-[#56D364] border border-[#3FB950]/40">
+            MANUAL
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-800 text-slate-400 border border-slate-700">
-            Untranslated
+          <span className="inline-flex items-center px-2 py-0.5 text-xs font-bold font-mono bg-[#30363D]/40 text-[#8B949E] border border-[#30363D]">
+            UNTRANSLATED
           </span>
         );
     }
   };
 
   return (
-    <div className="p-4 border-b border-slate-800 hover:bg-slate-900/60 transition-colors">
-      <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-3 mb-2">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-mono text-xs font-semibold text-indigo-400 bg-indigo-950/50 px-2 py-1 rounded border border-indigo-800/40">
+    <div className="p-4 border-b border-[#30363D] hover:bg-[#10141D] transition-colors font-mono">
+      <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-3 mb-2.5">
+        <div className="flex items-center gap-2.5 flex-wrap text-sm">
+          <span className="text-sm font-bold text-[#5865F2] bg-[#0D1117] px-2.5 py-1 border border-[#30363D]">
             {item.key_path}
           </span>
           {getStatusBadge()}
           {item.context_note && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-purple-950/70 text-purple-300 border border-purple-800/60 font-mono">
-              <MessageSquareQuote className="w-3 h-3 text-purple-400" />
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs bg-[#0D1117] text-[#8B949E] border border-[#30363D]">
+              <MessageSquareQuote className="w-3.5 h-3.5 text-[#5865F2]" />
               <span>{item.context_note}</span>
             </span>
           )}
           {item.model_used && (
-            <span className="text-[10px] text-slate-500 font-mono">
+            <span className="text-xs text-[#8B949E]">
               ({item.model_used})
             </span>
           )}
@@ -118,18 +118,18 @@ export const TranslationRowItem: React.FC<TranslationRowItemProps> = ({
           <button
             onClick={handleTranslateClick}
             disabled={isTranslating}
-            className="flex items-center gap-1.5 px-3 py-1 text-xs font-semibold bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/40 rounded-lg transition-colors disabled:opacity-50"
-            title="Translate this key using LM Studio"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-[#5865F2]/20 hover:bg-[#5865F2]/40 text-[#5865F2] border border-[#5865F2] transition-colors disabled:opacity-50"
+            title="Translate this key"
           >
             {isTranslating ? (
               <>
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                <span>Translating...</span>
+                <span>TRANSLATING...</span>
               </>
             ) : (
               <>
-                <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Translate (LM Studio)</span>
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>AI TRANSLATE</span>
               </>
             )}
           </button>
@@ -138,11 +138,11 @@ export const TranslationRowItem: React.FC<TranslationRowItemProps> = ({
             <button
               onClick={handleApprove}
               disabled={isSaving}
-              className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold bg-emerald-950/60 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-800/60 rounded-lg transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-[#3FB950]/20 hover:bg-[#3FB950]/30 text-[#56D364] border border-[#3FB950] transition-colors"
               title="Mark as approved"
             >
               <Check className="w-3.5 h-3.5" />
-              <span>Approve</span>
+              <span>APPROVE</span>
             </button>
           )}
         </div>
@@ -150,26 +150,26 @@ export const TranslationRowItem: React.FC<TranslationRowItemProps> = ({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
         {/* Source Text Box */}
-        <div className="bg-slate-950/80 p-3 rounded-lg border border-slate-800 text-sm text-slate-300 select-text leading-relaxed font-sans">
-          <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-1">
-            Reference (Source)
+        <div className="bg-[#0D1117] p-3.5 border border-[#30363D] text-sm text-[#E6EDF3] select-text leading-relaxed">
+          <div className="text-xs uppercase font-bold text-[#8B949E] tracking-wider mb-1.5">
+            SOURCE ({item.source_text?.length || 0} chars)
           </div>
-          <div className="whitespace-pre-wrap">{item.source_text}</div>
+          <div className="whitespace-pre-wrap min-h-[50px]">{item.source_text}</div>
         </div>
 
         {/* Target Translation Box */}
         <div className="relative">
-          <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-1 flex items-center justify-between">
-            <span>Translation ({item.language_code})</span>
-            {hasChanged && <span className="text-amber-400 font-normal">Unsaved changes (auto-saves on blur)</span>}
+          <div className="text-xs uppercase font-bold text-[#8B949E] tracking-wider mb-1.5 flex items-center justify-between">
+            <span>TARGET ({item.language_code})</span>
+            {hasChanged && <span className="text-[#E5534B] font-normal text-xs">UNSAVED (Auto-saves on blur)</span>}
           </div>
           <textarea
-            rows={2}
+            rows={3}
             value={translatedText}
             onChange={handleTextChange}
             onBlur={handleBlur}
             placeholder="Enter translation..."
-            className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-lg p-3 text-sm text-slate-100 focus:outline-none transition-colors font-sans leading-relaxed resize-y"
+            className="w-full bg-[#0D1117] border border-[#30363D] focus:border-[#5865F2] p-3.5 text-sm text-[#E6EDF3] outline-none transition-colors leading-relaxed resize-y min-h-[76px]"
           />
         </div>
       </div>

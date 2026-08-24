@@ -6,3 +6,5 @@ data/*.db-wal
 data/*.db-shm
 .DS_Store
 *.local
+test-results/
+playwright-report/

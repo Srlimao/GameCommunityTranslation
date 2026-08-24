@@ -140,7 +140,7 @@ test.describe('Local Game Translator E2E Tests with User System & Multi-Provider
     await page.getByRole('button', { name: 'Open Workspace' }).first().click();
 
     // Switch to Glossary tab
-    await page.getByRole('button', { name: 'Glossary' }).click();
+    await page.locator('header').getByRole('button', { name: /Glossary/i }).click();
     await expect(page.getByRole('heading', { name: 'Game Terminology Glossary' })).toBeVisible();
 
     // Add a glossary term
