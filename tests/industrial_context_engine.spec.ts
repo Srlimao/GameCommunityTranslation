@@ -30,7 +30,7 @@ test.describe('Industrial Technical Dark Mode & Advanced Context Engine E2E Test
     const gameName = `Aetheria Lore Hub ${Date.now()}`;
 
     // Create game
-    await page.getByRole('button', { name: 'Create Game' }).first().click();
+    await page.getByRole('button', { name: /NEW GAME|Create Game/i }).first().click();
     await page.getByPlaceholder('e.g. Chrono Odyssey, Pal Arena').fill(gameName);
     await page.locator('form').getByRole('button', { name: 'Create Game' }).click();
 
