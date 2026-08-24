@@ -1,0 +1,18 @@
+services:
+  local-translator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: local-translator
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - HOST=0.0.0.0
+      - SQLITE_DB_PATH=/app/data/translator.db
+    volumes:
+      - ./data:/app/data
+    env_file:
+      - .env
