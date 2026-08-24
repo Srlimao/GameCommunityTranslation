@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('Local Game Translator E2E Tests with User System & Multi-Provider AI', () => {
+test.describe('Game Community Translation E2E Tests with User System & Multi-Provider AI', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
   });

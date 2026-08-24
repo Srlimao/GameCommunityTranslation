@@ -46,7 +46,7 @@ if (fs.existsSync(clientDistPath)) {
 
 app.listen(PORT, HOST, () => {
   console.log(`=========================================`);
-  console.log(`🎮 Local Game Translator Server Running!`);
+  console.log(`🎮 Game Community Translation Server Running!`);
   console.log(`📡 Host Interface: ${HOST}:${PORT}`);
   console.log(`🌐 Web UI: http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);
   console.log(`=========================================`);

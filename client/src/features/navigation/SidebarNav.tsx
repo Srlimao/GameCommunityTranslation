@@ -74,7 +74,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
       <button
         onClick={() => onSelectView('dashboard')}
         className="w-12 h-12 bg-[#161B22] border border-[#5865F2] text-[#5865F2] hover:bg-[#5865F2] hover:text-white flex items-center justify-center transition-all mb-5 shadow-none"
-        title="Local Game Translator Console"
+        title="Game Community Translation Console"
       >
         <FolderGit2 className="w-6 h-6" />
       </button>
