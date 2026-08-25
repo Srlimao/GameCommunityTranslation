@@ -100,7 +100,104 @@ async function testJsonSchemaCustomization() {
     throw new Error('Translation was not injected properly!');
   }
 
-  console.log('🎉 ALL JSON SCHEMA ADAPTATION TESTS PASSED!');
+  // ==========================================
+  // 6. Test Grouped String Tables (.uasset JSON)
+  // ==========================================
+  console.log('\n🧪 Testing Grouped String Tables (.uasset multi-table dictionary)...');
+
+  const uassetJson = {
+    "Dialogues/LocTable_AllDialogues.uasset": {
+      "greenbeard_OpeningGB_D01_L01": "That was a very <b>dangerous</> thing you did! What were you thinking...",
+      "greenbeard_OpeningGB_D01_L02": "...Fell down, you say? Lucky I found you and <b>revived</> you here."
+    },
+    "LocTable_ArenaLevel.uasset": {
+      "arena_Arena1_name": "Carrot Farm",
+      "arena_Arena1_desc": "You unlock a new arena, <b>Carrot Farm</>."
+    }
+  };
+
+  // Test detection
+  const uassetAnalysis = JsonSchemaDetector.analyze(uassetJson);
+  console.log('✅ Auto-detected structure for .uasset JSON:', uassetAnalysis.structureType);
+  console.log('   Total keys counted:', uassetAnalysis.totalItemsCount);
+  console.log('   Detected tables:', uassetAnalysis.detectedListPaths.map(p => `${p.path} (${p.count} strings)`).join(', '));
+  console.log('   First sample item:', uassetAnalysis.samplePreview[0]);
+
+  if (uassetAnalysis.structureType !== 'grouped_dictionary') {
+    throw new Error(`Expected structureType to be 'grouped_dictionary', got '${uassetAnalysis.structureType}'`);
+  }
+  if (uassetAnalysis.totalItemsCount !== 4) {
+    throw new Error(`Expected totalItemsCount to be 4, got ${uassetAnalysis.totalItemsCount}`);
+  }
+  if (uassetAnalysis.samplePreview[0].contextNote !== 'Dialogues/LocTable_AllDialogues.uasset') {
+    throw new Error(`Expected sample contextNote to be 'Dialogues/LocTable_AllDialogues.uasset', got '${uassetAnalysis.samplePreview[0].contextNote}'`);
+  }
+
+  // Test flattening
+  const uassetSchemaConfig = {
+    mode: 'grouped_dictionary' as const,
+    textFields: ['_value'],
+  };
+  const uassetFlattened = JsonStructureParser.flattenWithConfig(uassetJson, uassetSchemaConfig);
+  console.log(`✅ Flattened ${uassetFlattened.length} grouped keys:`);
+  uassetFlattened.forEach(f => console.log(`   - Key: ${f.keyPath} | Text: "${f.sourceText}" | Context: "${f.contextNote}"`));
+
+  if (uassetFlattened.length !== 4) {
+    throw new Error(`Expected 4 flattened items, got ${uassetFlattened.length}`);
+  }
+  if (!uassetFlattened.some(f => f.keyPath === 'Dialogues/LocTable_AllDialogues.uasset.greenbeard_OpeningGB_D01_L01')) {
+    throw new Error('Missing expected flattened keyPath for dialogue line!');
+  }
+
+  // Test database import & reconstruction
+  const uassetGame = GamesRepository.create({
+    name: 'Funguys Swarm Game',
+    context_prompt: 'Roguelike adventure dialogue and UI strings.',
+  });
+
+  const uassetRawStr = JSON.stringify(uassetJson, null, 2);
+  const uassetSchemaStr = JSON.stringify(uassetSchemaConfig);
+  GamesRepository.importBaseKeys(uassetGame.id, uassetFlattened, uassetRawStr, uassetSchemaStr);
+
+  const frLang = TranslationsRepository.addLanguage(uassetGame.id, 'fr-FR', 'French');
+  const uassetBaseKeys = GamesRepository.getBaseKeys(uassetGame.id);
+
+  const gbKey = uassetBaseKeys.find(k => k.key_path === 'Dialogues/LocTable_AllDialogues.uasset.greenbeard_OpeningGB_D01_L01');
+  if (gbKey) {
+    TranslationsRepository.updateTranslation({
+      keyId: gbKey.id,
+      languageId: frLang.id,
+      translatedText: "C'était une chose très <b>dangereuse</> à faire ! À quoi pensiez-vous...",
+      status: 'approved',
+    });
+  }
+
+  const arenaKey = uassetBaseKeys.find(k => k.key_path === 'LocTable_ArenaLevel.uasset.arena_Arena1_name');
+  if (arenaKey) {
+    TranslationsRepository.updateTranslation({
+      keyId: arenaKey.id,
+      languageId: frLang.id,
+      translatedText: "Ferme de carottes",
+      status: 'approved',
+    });
+  }
+
+  const uassetExportMap = TranslationsRepository.getExportMap(uassetGame.id, 'fr-FR');
+  const uassetReconstructed = JsonStructureParser.unflattenWithTemplate(uassetExportMap, uassetRawStr, uassetSchemaStr);
+
+  console.log('✅ Reconstructed target .uasset JSON:', JSON.stringify(uassetReconstructed, null, 2));
+
+  if (!uassetReconstructed['Dialogues/LocTable_AllDialogues.uasset'] || !uassetReconstructed['LocTable_ArenaLevel.uasset']) {
+    throw new Error('Table keys were corrupted or missing in reconstruction!');
+  }
+  if (uassetReconstructed['Dialogues/LocTable_AllDialogues.uasset']['greenbeard_OpeningGB_D01_L01'] !== "C'était une chose très <b>dangereuse</> à faire ! À quoi pensiez-vous...") {
+    throw new Error('French translation was not injected into dialogue table!');
+  }
+  if (uassetReconstructed['LocTable_ArenaLevel.uasset']['arena_Arena1_name'] !== 'Ferme de carottes') {
+    throw new Error('French translation was not injected into arena table!');
+  }
+
+  console.log('🎉 ALL JSON SCHEMA & GROUPED DICTIONARY TESTS PASSED!');
 }
 
 testJsonSchemaCustomization().catch(err => {

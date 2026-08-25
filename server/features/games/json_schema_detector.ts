@@ -76,9 +76,78 @@ export class JsonSchemaDetector {
       };
     }
 
-    // 3. Check if it's a map of records: { "quest_1": { "text": "...", "speaker": "..." } }
+    // 3. Check if it's a grouped multi-table dictionary or a map of records
     const areAllObjectValues = entries.length > 0 && entries.every(([_, v]) => v && typeof v === 'object' && !Array.isArray(v));
     if (areAllObjectValues) {
+      let totalStringLeafCount = 0;
+      let totalLeafCount = 0;
+      const groupTablePaths: DetectedListPath[] = [];
+
+      for (const [groupKey, groupVal] of entries) {
+        if (groupVal && typeof groupVal === 'object' && !Array.isArray(groupVal)) {
+          const innerEntries = Object.entries(groupVal);
+          let stringCount = 0;
+          for (const [_, v] of innerEntries) {
+            totalLeafCount++;
+            if (typeof v === 'string') {
+              totalStringLeafCount++;
+              stringCount++;
+            }
+          }
+          groupTablePaths.push({
+            path: groupKey,
+            count: stringCount,
+            sampleFields: innerEntries.slice(0, 5).map(([k]) => k),
+          });
+        }
+      }
+
+      // Check if child objects are dictionaries of strings (e.g. LocTable / StringTable multi-asset files)
+      const isStringDictionary = totalLeafCount > 0 && (totalStringLeafCount / totalLeafCount) >= 0.8;
+
+      // Check if records share common schema field names (like record_map: { "quest1": { "speaker": "...", "text": "..." } })
+      let isUniformRecordMap = false;
+      if (entries.length >= 2) {
+        const sample0Keys = Object.keys(entries[0][1]);
+        const sample1Keys = Object.keys(entries[1][1]);
+        const commonKeys = sample0Keys.filter(k => sample1Keys.includes(k));
+        // If keys are identical or >50% overlap and field count is small (<15), it's a record map with fixed attributes
+        if (commonKeys.length > 0 && (commonKeys.length / Math.max(sample0Keys.length, sample1Keys.length)) >= 0.5 && sample0Keys.length < 15) {
+          isUniformRecordMap = true;
+        }
+      }
+
+      if (isStringDictionary && !isUniformRecordMap) {
+        const samplePreview: JsonAnalysisResult['samplePreview'] = [];
+        for (const [groupKey, groupVal] of entries) {
+          if (samplePreview.length >= 10) break;
+          if (groupVal && typeof groupVal === 'object' && !Array.isArray(groupVal)) {
+            for (const [k, v] of Object.entries(groupVal)) {
+              if (samplePreview.length >= 10) break;
+              if (typeof v === 'string') {
+                samplePreview.push({
+                  keyPath: `${groupKey}.${k}`,
+                  sourceText: v,
+                  contextNote: groupKey,
+                  ignoredAttributes: {},
+                });
+              }
+            }
+          }
+        }
+
+        return {
+          structureType: 'grouped_dictionary',
+          totalItemsCount: totalStringLeafCount,
+          detectedListPaths: groupTablePaths,
+          availableFields: ['_key', '_value'],
+          suggestedKeyField: '_key',
+          suggestedTextFields: ['_value'],
+          samplePreview,
+        };
+      }
+
+      // Record map
       const sampleArray = entries.slice(0, 50).map(([k, v]) => ({ _key: k, ...(v as object) }));
       const arrayAnalysis = this.analyzeArrayOfObjects(sampleArray, '', []);
       return {

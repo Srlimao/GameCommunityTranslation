@@ -28,13 +28,15 @@ export const TranslationTable: React.FC<TranslationTableProps> = ({
   // Filter items by search, status, and tree explorer prefix
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
-      // Tree prefix filter
+      // Tree prefix filter (supports ., /, \ and : delimiters across grouped tables)
       if (selectedTreePrefix) {
         let cleanKey = item.key_path;
         if (cleanKey.startsWith('$$$') && cleanKey.endsWith('$$')) {
           cleanKey = cleanKey.slice(3, -2);
         }
-        if (!cleanKey.toLowerCase().startsWith(selectedTreePrefix.toLowerCase())) {
+        const normalizedKey = cleanKey.replace(/[/:\\]/g, '.').toLowerCase();
+        const normalizedPrefix = selectedTreePrefix.replace(/[/:\\]/g, '.').toLowerCase();
+        if (!normalizedKey.startsWith(normalizedPrefix)) {
           return false;
         }
       }
@@ -47,10 +49,14 @@ export const TranslationTable: React.FC<TranslationTableProps> = ({
         (item.translated_text && item.translated_text.toLowerCase().includes(searchTerm.toLowerCase()));
 
       // Status filter
-      const matchesStatus =
-        statusFilter === 'all' ||
-        (statusFilter === 'untranslated' && (!item.translated_text || item.status === 'untranslated')) ||
-        item.status === statusFilter;
+      let matchesStatus = false;
+      if (statusFilter === 'all') {
+        matchesStatus = true;
+      } else if (statusFilter === 'untranslated') {
+        matchesStatus = !item.translated_text || item.status === 'untranslated';
+      } else {
+        matchesStatus = item.status === statusFilter;
+      }
 
       return matchesSearch && matchesStatus;
     });

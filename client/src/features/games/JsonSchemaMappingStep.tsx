@@ -63,6 +63,7 @@ export const JsonSchemaMappingStep: React.FC<JsonSchemaMappingStepProps> = ({
               className="w-full bg-[#161B22] border border-[#5865F2] px-2.5 py-1 text-xs font-bold text-[#E6EDF3] outline-none"
             >
               <option value="array_of_objects">Array / List of Records</option>
+              <option value="grouped_dictionary">Grouped String Tables / Multi-Table Map</option>
               <option value="dictionary_kv">Dictionary / Key-Value Map</option>
               <option value="nested_tree">Standard Nested Tree</option>
             </select>
@@ -172,6 +173,11 @@ export const JsonSchemaMappingStep: React.FC<JsonSchemaMappingStepProps> = ({
               })}
             </div>
           </div>
+        </div>
+      ) : schemaConfig.mode === 'grouped_dictionary' ? (
+        <div className="bg-[#0D1117] p-3 border border-[#30363D] text-xs text-[#8B949E] space-y-1">
+          <div className="text-[#E6EDF3] font-bold">Grouped String Tables / Multi-Table Map</div>
+          <div>Top-level keys represent tables/files (e.g. <span className="text-[#5865F2]">.uasset</span> localization tables) containing key-value translation dictionaries. Table names will automatically be provided as context notes.</div>
         </div>
       ) : schemaConfig.mode === 'dictionary_kv' ? (
         <div className="bg-[#0D1117] p-3 border border-[#30363D] text-xs text-[#8B949E]">

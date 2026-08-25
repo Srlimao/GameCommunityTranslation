@@ -45,7 +45,8 @@ CREATE TABLE IF NOT EXISTS translations (
   model_used TEXT DEFAULT '',
   updated_at TEXT NOT NULL,
   FOREIGN KEY(key_id) REFERENCES base_keys(id) ON DELETE CASCADE,
-  FOREIGN KEY(language_id) REFERENCES languages(id) ON DELETE CASCADE
+  FOREIGN KEY(language_id) REFERENCES languages(id) ON DELETE CASCADE,
+  UNIQUE(key_id, language_id)
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_translations_key_lang ON translations(key_id, language_id);

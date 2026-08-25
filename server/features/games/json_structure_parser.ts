@@ -33,6 +33,10 @@ export class JsonStructureParser {
       return this.flattenDictionary(jsonObj);
     }
 
+    if (schema.mode === 'grouped_dictionary' && typeof jsonObj === 'object' && jsonObj !== null) {
+      return this.flattenGroupedDictionary(jsonObj);
+    }
+
     return this.flatten(jsonObj);
   }
 
@@ -79,6 +83,25 @@ export class JsonStructureParser {
         orderIndex: result.length,
       });
     });
+    return result;
+  }
+
+  private static flattenGroupedDictionary(obj: Record<string, any>): FlattenedKeyItem[] {
+    const result: FlattenedKeyItem[] = [];
+
+    Object.entries(obj).forEach(([groupKey, groupVal]) => {
+      if (!groupVal || typeof groupVal !== 'object' || Array.isArray(groupVal)) return;
+
+      Object.entries(groupVal).forEach(([k, v]) => {
+        result.push({
+          keyPath: `${groupKey}.${k}`,
+          sourceText: String(v),
+          contextNote: groupKey,
+          orderIndex: result.length,
+        });
+      });
+    });
+
     return result;
   }
 
@@ -228,6 +251,22 @@ export class JsonStructureParser {
               item[textField] = flatMap[keyPath];
             }
           }
+        });
+        return cloned;
+      }
+
+      // 5. Grouped Multi-Table Dictionary (e.g. Unreal LocTable / StringTable exports)
+      if (schema.mode === 'grouped_dictionary' && typeof template === 'object' && template !== null) {
+        const cloned = JSON.parse(JSON.stringify(template));
+        Object.entries(cloned).forEach(([groupKey, groupObj]: [string, any]) => {
+          if (!groupObj || typeof groupObj !== 'object' || Array.isArray(groupObj)) return;
+
+          Object.keys(groupObj).forEach((k) => {
+            const keyPath = `${groupKey}.${k}`;
+            if (flatMap[keyPath] !== undefined) {
+              groupObj[k] = flatMap[keyPath];
+            }
+          });
         });
         return cloned;
       }

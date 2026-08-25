@@ -30,7 +30,7 @@ export const ApiClient = {
   },
 
   async getGame(id: string): Promise<GameSummary> {
-    const res = await fetch(`${API_BASE}/games/${id}`);
+    const res = await fetch(`${API_BASE}/games/${id}`, { headers: getAuthHeaders() });
     const data = await res.json();
     return data.game;
   },
@@ -38,7 +38,7 @@ export const ApiClient = {
   async createGame(game: { name: string; description?: string; context_prompt?: string; base_language?: string }): Promise<GameSummary> {
     const res = await fetch(`${API_BASE}/games`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify(game),
     });
     const data = await res.json();
@@ -49,7 +49,7 @@ export const ApiClient = {
   async updateGame(id: string, partial: Partial<GameSummary>): Promise<GameSummary> {
     const res = await fetch(`${API_BASE}/games/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify(partial),
     });
     const data = await res.json();
@@ -58,7 +58,7 @@ export const ApiClient = {
   },
 
   async deleteGame(id: string): Promise<boolean> {
-    const res = await fetch(`${API_BASE}/games/${id}`, { method: 'DELETE' });
+    const res = await fetch(`${API_BASE}/games/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
     const data = await res.json();
     return data.success;
   },
@@ -66,7 +66,7 @@ export const ApiClient = {
   async analyzeJson(gameId: string, jsonContent: string | object): Promise<JsonAnalysisResult> {
     const res = await fetch(`${API_BASE}/games/${gameId}/analyze-json`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify({ jsonContent }),
     });
     const data = await res.json();
@@ -81,7 +81,7 @@ export const ApiClient = {
   ): Promise<{ importedCount: number; message: string }> {
     const res = await fetch(`${API_BASE}/games/${gameId}/import-json`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify({ jsonContent, schemaConfig }),
     });
     const data = await res.json();
@@ -91,7 +91,7 @@ export const ApiClient = {
 
   // Languages & Translations
   async getLanguages(gameId: string): Promise<LanguageProgress[]> {
-    const res = await fetch(`${API_BASE}/games/${gameId}/languages`);
+    const res = await fetch(`${API_BASE}/games/${gameId}/languages`, { headers: getAuthHeaders() });
     const data = await res.json();
     return data.languages || [];
   },
@@ -99,7 +99,7 @@ export const ApiClient = {
   async addLanguage(gameId: string, language_code: string, language_name: string): Promise<any> {
     const res = await fetch(`${API_BASE}/games/${gameId}/languages`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify({ language_code, language_name }),
     });
     const data = await res.json();
@@ -108,7 +108,7 @@ export const ApiClient = {
   },
 
   async deleteLanguage(gameId: string, languageId: string): Promise<boolean> {
-    const res = await fetch(`${API_BASE}/games/${gameId}/languages/${languageId}`, { method: 'DELETE' });
+    const res = await fetch(`${API_BASE}/games/${gameId}/languages/${languageId}`, { method: 'DELETE', headers: getAuthHeaders() });
     const data = await res.json();
     return data.success;
   },
@@ -118,7 +118,7 @@ export const ApiClient = {
     if (filters?.status) params.set('status', filters.status);
     if (filters?.search) params.set('search', filters.search);
 
-    const res = await fetch(`${API_BASE}/games/${gameId}/translations/${languageCode}?${params.toString()}`);
+    const res = await fetch(`${API_BASE}/games/${gameId}/translations/${languageCode}?${params.toString()}`, { headers: getAuthHeaders() });
     const data = await res.json();
     return data.items || [];
   },
@@ -132,7 +132,7 @@ export const ApiClient = {
   }): Promise<void> {
     const res = await fetch(`${API_BASE}/games/dummy/translations/item`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify(params),
     });
     const data = await res.json();
@@ -149,7 +149,7 @@ export const ApiClient = {
   }): Promise<string> {
     const res = await fetch(`${API_BASE}/translate/single`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify(params),
     });
     const data = await res.json();
@@ -165,7 +165,7 @@ export const ApiClient = {
   }): Promise<string> {
     const res = await fetch(`${API_BASE}/translate/batch`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify(params),
     });
     const data = await res.json();
@@ -176,7 +176,7 @@ export const ApiClient = {
   async cancelBatch(jobId: string): Promise<boolean> {
     const res = await fetch(`${API_BASE}/translate/cancel`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify({ jobId }),
     });
     const data = await res.json();
@@ -186,7 +186,7 @@ export const ApiClient = {
   // Glossary
   async getGlossary(gameId: string, language?: string): Promise<GlossaryEntry[]> {
     const url = language ? `${API_BASE}/games/${gameId}/glossary?language=${language}` : `${API_BASE}/games/${gameId}/glossary`;
-    const res = await fetch(url);
+    const res = await fetch(url, { headers: getAuthHeaders() });
     const data = await res.json();
     return data.glossary || [];
   },
@@ -194,7 +194,7 @@ export const ApiClient = {
   async addGlossaryEntry(gameId: string, entry: Partial<GlossaryEntry>): Promise<GlossaryEntry> {
     const res = await fetch(`${API_BASE}/games/${gameId}/glossary`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify(entry),
     });
     const data = await res.json();
@@ -205,7 +205,7 @@ export const ApiClient = {
   async batchAddGlossary(gameId: string, entries: Partial<GlossaryEntry>[]): Promise<number> {
     const res = await fetch(`${API_BASE}/games/${gameId}/glossary/batch`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify({ entries }),
     });
     const data = await res.json();
@@ -216,7 +216,7 @@ export const ApiClient = {
   async updateGlossaryEntry(gameId: string, id: string, entry: Partial<GlossaryEntry>): Promise<GlossaryEntry> {
     const res = await fetch(`${API_BASE}/games/${gameId}/glossary/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify(entry),
     });
     const data = await res.json();
@@ -225,7 +225,7 @@ export const ApiClient = {
   },
 
   async deleteGlossaryEntry(gameId: string, id: string): Promise<boolean> {
-    const res = await fetch(`${API_BASE}/games/${gameId}/glossary/${id}`, { method: 'DELETE' });
+    const res = await fetch(`${API_BASE}/games/${gameId}/glossary/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
     const data = await res.json();
     return data.success;
   },
@@ -234,7 +234,7 @@ export const ApiClient = {
   async analyzeWithGemini(gameId: string, languageCode: string): Promise<{ candidates: GlossaryCandidate[]; issues: TranslationIssue[]; message?: string }> {
     const res = await fetch(`${API_BASE}/gemini/analyze`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify({ gameId, languageCode }),
     });
     const data = await res.json();

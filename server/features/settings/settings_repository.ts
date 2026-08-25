@@ -16,6 +16,7 @@ const DEFAULT_SETTINGS: SystemSettings = {
   batch_concurrency: parseInt(process.env.BATCH_CONCURRENCY || '1', 10),
   request_timeout_ms: parseInt(process.env.REQUEST_TIMEOUT_MS || '60000', 10),
   custom_system_prompt: '',
+  enable_two_pass_refiner: process.env.ENABLE_TWO_PASS_REFINER === 'true' || false,
 
   // Legacy mappings for backwards compatibility
   lm_studio_url: process.env.LM_STUDIO_URL || 'http://localhost:1234/v1',
@@ -44,6 +45,9 @@ export class SettingsRepository {
     const batch_concurrency = parseInt(settingsMap.get('batch_concurrency') || String(DEFAULT_SETTINGS.batch_concurrency), 10);
     const request_timeout_ms = parseInt(settingsMap.get('request_timeout_ms') || String(DEFAULT_SETTINGS.request_timeout_ms), 10);
     const custom_system_prompt = settingsMap.get('custom_system_prompt') || '';
+    const enable_two_pass_refiner = settingsMap.has('enable_two_pass_refiner')
+      ? settingsMap.get('enable_two_pass_refiner') === 'true'
+      : DEFAULT_SETTINGS.enable_two_pass_refiner;
 
     return {
       translation_provider,
@@ -58,6 +62,7 @@ export class SettingsRepository {
       batch_concurrency,
       request_timeout_ms,
       custom_system_prompt,
+      enable_two_pass_refiner,
       lm_studio_url: translation_base_url,
       lm_studio_model: translation_model,
       gemini_api_key: qa_api_key,
@@ -99,6 +104,9 @@ export class SettingsRepository {
       custom_system_prompt: userMap.has('custom_system_prompt')
         ? userMap.get('custom_system_prompt')
         : globalSettings.custom_system_prompt,
+      enable_two_pass_refiner: userMap.has('enable_two_pass_refiner')
+        ? userMap.get('enable_two_pass_refiner') === 'true'
+        : globalSettings.enable_two_pass_refiner,
       lm_studio_url: userMap.get('translation_base_url') || globalSettings.translation_base_url,
       lm_studio_model: userMap.get('translation_model') || globalSettings.translation_model,
       gemini_api_key: userMap.get('qa_api_key') || globalSettings.qa_api_key,
@@ -135,6 +143,7 @@ export class SettingsRepository {
       insertOrReplace.run('batch_concurrency', settings.batch_concurrency.toString());
       insertOrReplace.run('request_timeout_ms', settings.request_timeout_ms.toString());
       insertOrReplace.run('custom_system_prompt', settings.custom_system_prompt || '');
+      insertOrReplace.run('enable_two_pass_refiner', String(settings.enable_two_pass_refiner ?? false));
 
       insertOrReplace.run('lm_studio_url', settings.translation_base_url);
       insertOrReplace.run('lm_studio_model', settings.translation_model);
@@ -167,6 +176,7 @@ export class SettingsRepository {
       if (p.batch_concurrency !== undefined) insertOrReplace.run(userId, 'batch_concurrency', p.batch_concurrency.toString());
       if (p.request_timeout_ms !== undefined) insertOrReplace.run(userId, 'request_timeout_ms', p.request_timeout_ms.toString());
       if (p.custom_system_prompt !== undefined) insertOrReplace.run(userId, 'custom_system_prompt', p.custom_system_prompt || '');
+      if (p.enable_two_pass_refiner !== undefined) insertOrReplace.run(userId, 'enable_two_pass_refiner', String(p.enable_two_pass_refiner));
     });
 
     updateTx(partial);

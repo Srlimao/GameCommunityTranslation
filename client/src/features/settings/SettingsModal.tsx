@@ -27,6 +27,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     batch_concurrency: 1,
     request_timeout_ms: 60000,
     custom_system_prompt: '',
+    enable_two_pass_refiner: false,
   });
 
   const [activeTab, setActiveTab] = useState<'translation' | 'qa' | 'performance'>('translation');
@@ -133,21 +134,55 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
         <form onSubmit={handleSave} className="p-4 space-y-4 max-h-[75vh] overflow-y-auto text-xs">
           {activeTab === 'translation' && (
-            <ProviderConfigCard
-              title="Primary Translation Engine"
-              subtitle="Generates localized game strings (LM Studio, Ollama, OpenAI, Claude, Groq, DeepSeek)"
-              icon="cpu"
-              provider={settings.translation_provider}
-              baseUrl={settings.translation_base_url}
-              apiKey={settings.translation_api_key}
-              model={settings.translation_model}
-              temperature={settings.translation_temperature}
-              onProviderChange={(p) => setSettings({ ...settings, translation_provider: p })}
-              onBaseUrlChange={(u) => setSettings({ ...settings, translation_base_url: u })}
-              onApiKeyChange={(k) => setSettings({ ...settings, translation_api_key: k })}
-              onModelChange={(m) => setSettings({ ...settings, translation_model: m })}
-              onTemperatureChange={(t) => setSettings({ ...settings, translation_temperature: t })}
-            />
+            <div className="space-y-3.5">
+              <ProviderConfigCard
+                title="Primary Translation Engine"
+                subtitle="Generates localized game strings (LM Studio, Ollama, OpenAI, Claude, Groq, DeepSeek)"
+                icon="cpu"
+                provider={settings.translation_provider}
+                baseUrl={settings.translation_base_url}
+                apiKey={settings.translation_api_key}
+                model={settings.translation_model}
+                temperature={settings.translation_temperature}
+                onProviderChange={(p) => setSettings({ ...settings, translation_provider: p })}
+                onBaseUrlChange={(u) => setSettings({ ...settings, translation_base_url: u })}
+                onApiKeyChange={(k) => setSettings({ ...settings, translation_api_key: k })}
+                onModelChange={(m) => setSettings({ ...settings, translation_model: m })}
+                onTemperatureChange={(t) => setSettings({ ...settings, translation_temperature: t })}
+              />
+
+              {/* Two-Pass Validation / Auditor Refiner Toggle */}
+              <div className="bg-[#0D1117] p-3.5 border border-[#30363D] flex items-start justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-xs text-[#E6EDF3] uppercase tracking-wider">
+                      Auto-Validation with Second AI Pass
+                    </span>
+                    {settings.enable_two_pass_refiner ? (
+                      <span className="text-[9px] bg-[#3FB950]/20 text-[#3FB950] border border-[#3FB950]/40 px-1.5 py-0.2 font-mono font-bold">
+                        ENABLED
+                      </span>
+                    ) : (
+                      <span className="text-[9px] bg-[#30363D] text-[#8B949E] px-1.5 py-0.2 font-mono">
+                        SINGLE PASS
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-[#8B949E] leading-relaxed">
+                    Executes an automatic second verification call to audit tag parity (e.g. restoring <span className="text-[#5865F2] font-bold">&lt;b&gt;...&lt;/&gt;</span> if markdown was used), check placeholders (<span className="text-[#3FB950] font-bold">&#123;0&#125;</span>, <span className="text-[#3FB950] font-bold">%s</span>), and correct formatting drifts.
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer flex-shrink-0 mt-0.5">
+                  <input
+                    type="checkbox"
+                    checked={!!settings.enable_two_pass_refiner}
+                    onChange={(e) => setSettings({ ...settings, enable_two_pass_refiner: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-[#30363D] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#5865F2]"></div>
+                </label>
+              </div>
+            </div>
           )}
 
           {activeTab === 'qa' && (

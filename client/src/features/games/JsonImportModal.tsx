@@ -129,6 +129,25 @@ export const JsonImportModal: React.FC<JsonImportModalProps> = ({
             }
           });
           setPreviewItems(updatedPreview);
+        } else if (newSchema.mode === 'grouped_dictionary' && typeof parsed === 'object' && parsed !== null) {
+          const updatedPreview: any[] = [];
+          for (const [groupKey, groupVal] of Object.entries(parsed)) {
+            if (updatedPreview.length >= 8) break;
+            if (groupVal && typeof groupVal === 'object' && !Array.isArray(groupVal)) {
+              for (const [k, v] of Object.entries(groupVal)) {
+                if (updatedPreview.length >= 8) break;
+                if (typeof v === 'string') {
+                  updatedPreview.push({
+                    keyPath: `${groupKey}.${k}`,
+                    sourceText: v,
+                    contextNote: groupKey,
+                    ignoredAttributes: {},
+                  });
+                }
+              }
+            }
+          }
+          setPreviewItems(updatedPreview);
         } else if (newSchema.mode === 'dictionary_kv' && typeof parsed === 'object' && parsed !== null) {
           setPreviewItems(
             Object.entries(parsed).slice(0, 8).map(([k, v]) => ({

@@ -11,7 +11,7 @@ export interface Game {
 }
 
 export interface JsonSchemaConfig {
-  mode: 'nested_tree' | 'array_of_objects' | 'record_map' | 'dictionary_kv';
+  mode: 'nested_tree' | 'array_of_objects' | 'record_map' | 'dictionary_kv' | 'grouped_dictionary';
   rootPath?: string; // e.g. "Translations" or "" for root array
   keyField?: string; // e.g. "Key", "id", "_index", "_key"
   textFields: string[]; // e.g. ["Value"], ["text", "name"]
@@ -25,7 +25,7 @@ export interface DetectedListPath {
 }
 
 export interface JsonAnalysisResult {
-  structureType: 'nested_tree' | 'array_of_objects' | 'record_map' | 'dictionary_kv';
+  structureType: 'nested_tree' | 'array_of_objects' | 'record_map' | 'dictionary_kv' | 'grouped_dictionary';
   totalItemsCount: number;
   detectedListPaths: DetectedListPath[];
   selectedListPath?: string;
@@ -106,6 +106,7 @@ export interface SystemSettings {
   batch_concurrency: number;
   request_timeout_ms: number;
   custom_system_prompt?: string;
+  enable_two_pass_refiner?: boolean;
 
   // Backwards compatibility legacy fields
   lm_studio_url?: string;

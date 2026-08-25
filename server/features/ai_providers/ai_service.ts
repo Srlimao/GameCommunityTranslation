@@ -50,7 +50,8 @@ export class AIService {
       model: settings.translation_model,
     };
 
-    const text = await provider.generateText(credentials, {
+    // Pass 1: Initial Draft Translation
+    const draftText = await provider.generateText(credentials, {
       messages: [
         { role: 'system', content: combinedSystem },
         { role: 'user', content: user },
@@ -59,8 +60,47 @@ export class AIService {
       timeoutMs: settings.request_timeout_ms || 60000,
     });
 
-    const modelUsed = `${providerType}:${settings.translation_model || 'default'}`;
-    return { text, modelUsed };
+    let finalText = draftText.trim();
+
+    // Pass 2: Auditor / Verification & Tag Refiner Call (Optional based on configuration)
+    if (settings.enable_two_pass_refiner) {
+      try {
+        const useQaProvider = !!(settings.qa_api_key || (settings.qa_base_url && settings.qa_base_url !== settings.translation_base_url));
+        const refinerProviderType = useQaProvider ? (settings.qa_provider || 'openai_compatible') : providerType;
+        const refinerProvider = this.getProviderInstance(refinerProviderType);
+
+        const refinerCredentials: ProviderCredentials = useQaProvider
+          ? {
+              apiKey: settings.qa_api_key,
+              baseUrl: settings.qa_base_url,
+              model: settings.qa_model,
+            }
+          : credentials;
+
+        const { system: refinerSystem, user: refinerUser } = TranslationPromptBuilder.buildRefinerPrompt({
+          ...params,
+          draftTranslation: draftText,
+        });
+
+        const refinedText = await refinerProvider.generateText(refinerCredentials, {
+          messages: [
+            { role: 'system', content: refinerSystem },
+            { role: 'user', content: refinerUser },
+          ],
+          temperature: 0.1,
+          timeoutMs: settings.request_timeout_ms || 60000,
+        });
+
+        if (refinedText && refinedText.trim()) {
+          finalText = refinedText.trim();
+        }
+      } catch (refinerErr) {
+        console.warn('[AIService] Pass 2 refiner skipped/failed, using pass 1 draft:', refinerErr);
+      }
+    }
+
+    const modelUsed = `${providerType}:${settings.translation_model || 'default'}${settings.enable_two_pass_refiner ? '+refiner' : ''}`;
+    return { text: finalText, modelUsed };
   }
 
   static async generateStructuredJson<T>(

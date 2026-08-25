@@ -28,4 +28,37 @@ try {
   db.exec("ALTER TABLE games ADD COLUMN schema_config TEXT DEFAULT ''");
 } catch {}
 
+// Deduplicate translation rows if any duplicates exist
+try {
+  db.exec(`
+    DELETE FROM translations
+    WHERE id NOT IN (
+      SELECT id FROM (
+        SELECT id,
+               ROW_NUMBER() OVER (
+                 PARTITION BY key_id, language_id
+                 ORDER BY
+                   CASE
+                     WHEN status = 'approved' THEN 1
+                     WHEN status = 'manual_translated' THEN 2
+                     WHEN status = 'ai_translated' THEN 3
+                     ELSE 4
+                   END ASC,
+                   LENGTH(translated_text) DESC,
+                   updated_at DESC
+               ) as rn
+        FROM translations
+      ) WHERE rn = 1
+    );
+  `);
+} catch (err) {
+  console.warn('[Database] Duplicate cleanup notice:', err);
+}
+
+try {
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_translations_key_lang ON translations(key_id, language_id)");
+} catch (err) {
+  console.warn('[Database] Unique index creation notice:', err);
+}
+
 console.log(`[Database] SQLite initialized at: ${path.resolve(DB_PATH)}`);
