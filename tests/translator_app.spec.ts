@@ -5,6 +5,16 @@ test.describe('Game Community Translation E2E Tests with User System & Multi-Pro
     await page.goto('/');
   });
 
+  test.afterAll(async () => {
+    try {
+      const { db } = await import('../server/database/sqlite_client.ts');
+      db.prepare("DELETE FROM games WHERE name LIKE 'Aetheria Lore Hub%' OR name LIKE 'Chronicles of Solaria%' OR name LIKE 'Custom Schema Game%'").run();
+      db.prepare("DELETE FROM users WHERE username LIKE 'user_%' OR username LIKE 'testadmin_%' OR username LIKE 'localizer_%'").run();
+    } catch (e) {
+      console.warn('Test cleanup notice:', e);
+    }
+  });
+
   test('1. User Authentication & Profile Management', async ({ page }) => {
     // 1. Check Sign In button in header
     const signInBtn = page.getByRole('button', { name: 'Sign In' });
@@ -198,4 +208,37 @@ test.describe('Game Community Translation E2E Tests with User System & Multi-Pro
     await page.getByRole('button', { name: 'Confirm & Import Keys' }).click();
     await expect(page.getByText('Successfully imported 1 base reference keys')).toBeVisible({ timeout: 5000 });
   });
+
+  test('6. QA Inspector: Code Validator Auto-Check List, 1-Click Fix & Tab-Out Persistence', async ({ page }) => {
+    await page.getByRole('button', { name: 'Open Workspace' }).first().click();
+
+    // Add target language
+    await page.getByRole('button', { name: 'Add Language' }).first().click();
+    await page.getByRole('button', { name: 'Spanish (Spain) (es-ES)' }).click();
+    await page.locator('form').getByRole('button', { name: 'Add Language' }).click();
+    await expect(page.getByRole('button', { name: /Spanish \(Spain\)/ }).first()).toBeVisible({ timeout: 5000 });
+
+    // Switch to AI QA & Inspector tab
+    await page.getByRole('button', { name: 'AI QA & Inspector' }).click();
+    await expect(page.getByText('Google Gemini Terminology & QA Inspector')).toBeVisible();
+
+    // Verify Code Validator Auto-Check card is present
+    await expect(page.getByText('Code & Symbol Parity Validator')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'RUN CODE VALIDATOR' })).toBeVisible();
+
+    // Run Code Validator
+    await page.getByRole('button', { name: 'RUN CODE VALIDATOR' }).click();
+    await expect(page.getByText('Keys Scanned', { exact: true })).toBeVisible({ timeout: 5000 });
+
+    // Switch to Translations tab (tab-out)
+    await page.locator('header').getByRole('button', { name: /Translations/i }).click();
+    await expect(page.getByText('Import Base JSON')).toBeVisible();
+
+    // Switch back to AI QA & Inspector tab (tab-in)
+    await page.getByRole('button', { name: 'AI QA & Inspector' }).click();
+    // Stored validation summary and scanned keys count should still be visible without re-running!
+    await expect(page.getByText('Keys Scanned', { exact: true })).toBeVisible();
+    await expect(page.getByText('Code & Symbol Parity Validator')).toBeVisible();
+  });
 });
+

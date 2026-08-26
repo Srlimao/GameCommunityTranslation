@@ -32,6 +32,7 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
   const [isBatchOpen, setIsBatchOpen] = useState(false);
   const [isImportJsonOpen, setIsImportJsonOpen] = useState(false);
   const [activeBatch, setActiveBatch] = useState<BatchProgressData | null>(null);
+  const [glossaryCount, setGlossaryCount] = useState<number>(game.glossaryCount || 0);
 
   const contextData = React.useMemo(() => ContextSerializer.parse(game.context_prompt), [game.context_prompt]);
 
@@ -40,6 +41,17 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
       setSelectedLangCode(game.languages[0].language_code);
     }
   }, [game.languages, selectedLangCode]);
+
+  useEffect(() => {
+    if (!game.id) return;
+    ApiClient.getGlossary(game.id, selectedLangCode)
+      .then((entries) => {
+        setGlossaryCount(entries.length);
+      })
+      .catch((err) => {
+        console.error('Failed to load glossary entries count:', err);
+      });
+  }, [game.id, selectedLangCode, game.glossaryCount]);
 
   const loadTranslations = async () => {
     if (!selectedLangCode) return;
@@ -170,7 +182,7 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
       {/* AI Inheritance Panel (Option 2) */}
       <AiInheritancePanel
         contextData={contextData}
-        glossaryCount={game.glossaryCount || 0}
+        glossaryCount={glossaryCount}
       />
 
       {/* Language Content */}

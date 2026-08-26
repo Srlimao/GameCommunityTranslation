@@ -7,9 +7,17 @@ export class GlossaryRepository {
     let query = 'SELECT * FROM glossary WHERE game_id = ?';
     const params: any[] = [gameId];
 
-    if (targetLanguage) {
-      query += " AND (target_language = ? OR target_language = '' OR target_language IS NULL)";
-      params.push(targetLanguage);
+    if (targetLanguage && targetLanguage.trim() !== '') {
+      const cleanLang = targetLanguage.trim();
+      const baseCode = cleanLang.split('-')[0].split('_')[0];
+      query += ` AND (
+        LOWER(target_language) = LOWER(?) 
+        OR LOWER(target_language) = LOWER(?)
+        OR LOWER(SUBSTR(target_language, 1, 2)) = LOWER(?)
+        OR target_language = '' 
+        OR target_language IS NULL
+      )`;
+      params.push(cleanLang, baseCode, baseCode);
     }
 
     query += ' ORDER BY source_term ASC';

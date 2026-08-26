@@ -3,6 +3,7 @@ import { GamesRepository } from './games_repository.ts';
 import { JsonStructureParser } from './json_structure_parser.ts';
 import { JsonSchemaDetector } from './json_schema_detector.ts';
 import { TranslationsRepository } from '../translations/translations_repository.ts';
+import { GlossaryRepository } from '../glossary/glossary_repository.ts';
 import { JsonSchemaConfig } from '../../types/domain_types.ts';
 
 export const gamesRouter = Router();
@@ -14,6 +15,7 @@ gamesRouter.get('/', (req: Request, res: Response) => {
     const gamesWithStats = games.map(g => ({
       ...g,
       totalKeys: GamesRepository.getBaseKeysCount(g.id),
+      glossaryCount: GlossaryRepository.getByGame(g.id).length,
       languages: TranslationsRepository.getLanguages(g.id),
     }));
     res.json({ success: true, games: gamesWithStats });
@@ -32,6 +34,7 @@ gamesRouter.get('/:id', (req: Request, res: Response) => {
     const stats = {
       ...game,
       totalKeys: GamesRepository.getBaseKeysCount(game.id),
+      glossaryCount: GlossaryRepository.getByGame(game.id).length,
       languages: TranslationsRepository.getLanguages(game.id),
     };
     res.json({ success: true, game: stats });

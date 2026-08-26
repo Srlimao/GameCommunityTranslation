@@ -3,7 +3,12 @@ import { GameSummary, GlossaryCandidate, TranslationIssue } from '../../types/cl
 import { ApiClient } from '../../services/api_client.ts';
 import { GlossaryCandidateCard } from './GlossaryCandidateCard.tsx';
 import { TranslationIssueCard } from './TranslationIssueCard.tsx';
-import { Sparkles, Loader2, AlertTriangle, BookOpen, CheckCircle2 } from 'lucide-react';
+import { AutoCheckSummaryCard } from './AutoCheckSummaryCard.tsx';
+import { InspectorHeader } from './InspectorHeader.tsx';
+import { InspectorTabs } from './InspectorTabs.tsx';
+import { CodeValidator } from './code_validator.ts';
+import { useInspectorStore } from './use_inspector_store.ts';
+import { Sparkles, CheckCircle2, ShieldCheck } from 'lucide-react';
 
 interface GeminiInspectorPanelProps {
   game: GameSummary;
@@ -14,26 +19,98 @@ export const GeminiInspectorPanel: React.FC<GeminiInspectorPanelProps> = ({
   game,
   initialLanguageCode,
 }) => {
-  const [selectedLangCode, setSelectedLangCode] = useState<string>(
-    initialLanguageCode || game.languages?.[0]?.language_code || ''
-  );
-  const [candidates, setCandidates] = useState<GlossaryCandidate[]>([]);
-  const [issues, setIssues] = useState<TranslationIssue[]>([]);
+  const {
+    selectedLangCode,
+    activeTab,
+    candidates,
+    issues,
+    validationSummary,
+    setSelectedLangCode,
+    setActiveTab,
+    setCandidates,
+    addOrMergeIssues,
+    markIssueApplied,
+    markAllApplied,
+    setValidationSummary,
+    clearResults,
+  } = useInspectorStore(game.id, initialLanguageCode || game.languages?.[0]?.language_code || '');
+
+  const [languages, setLanguages] = useState(game.languages || []);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'candidates' | 'issues'>('candidates');
 
-  const handleRunInspector = async () => {
-    if (!selectedLangCode) return;
+  React.useEffect(() => {
+    if (game.languages && game.languages.length > 0) {
+      setLanguages(game.languages);
+      if (!selectedLangCode) {
+        setSelectedLangCode(game.languages[0].language_code);
+      }
+    } else {
+      ApiClient.getLanguages(game.id).then((langs) => {
+        if (langs && langs.length > 0) {
+          setLanguages(langs);
+          if (!selectedLangCode) {
+            setSelectedLangCode(langs[0].language_code);
+          }
+        }
+      }).catch(console.error);
+    }
+  }, [game.id, game.languages, selectedLangCode, setSelectedLangCode]);
+
+  const currentLang = languages.find((l) => l.language_code === selectedLangCode);
+
+  const resolveTargetLang = async (): Promise<string | undefined> => {
+    let targetLang = selectedLangCode;
+    if (!targetLang) {
+      if (languages.length > 0) {
+        targetLang = languages[0].language_code;
+      } else {
+        const fetched = await ApiClient.getLanguages(game.id);
+        if (fetched && fetched.length > 0) {
+          setLanguages(fetched);
+          targetLang = fetched[0].language_code;
+        }
+      }
+      if (targetLang) {
+        setSelectedLangCode(targetLang);
+      }
+    }
+    return targetLang;
+  };
+
+  const handleRunCodeValidator = async () => {
+    const targetLang = await resolveTargetLang();
+    if (!targetLang) return;
+    setIsValidating(true);
+    setError(null);
+    try {
+      const items = await ApiClient.getTranslations(game.id, targetLang);
+      const result = CodeValidator.validateAll(items);
+      setValidationSummary(result.summary);
+      addOrMergeIssues(result.issues);
+      setInfoMessage(`Code validator completed: ${result.summary.totalChecked} keys scanned, ${result.issues.length} issue(s) detected.`);
+    } catch (err: any) {
+      setError(err.message || 'Code validation failed');
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
+  const handleRunAiInspector = async () => {
+    const targetLang = await resolveTargetLang();
+    if (!targetLang) return;
     setIsAnalyzing(true);
     setError(null);
     setInfoMessage(null);
 
     try {
-      const result = await ApiClient.analyzeWithGemini(game.id, selectedLangCode);
+      const result = await ApiClient.analyzeWithGemini(game.id, targetLang);
       setCandidates(result.candidates || []);
-      setIssues(result.issues || []);
+      if (result.issues?.length) {
+        addOrMergeIssues(result.issues);
+      }
       if (result.message) {
         setInfoMessage(result.message);
       }
@@ -42,6 +119,63 @@ export const GeminiInspectorPanel: React.FC<GeminiInspectorPanelProps> = ({
     } finally {
       setIsAnalyzing(false);
     }
+  };
+
+  const handleApplyFix = async (issue: TranslationIssue, fixedText: string) => {
+    let keyId = issue.key_id;
+    let langId = issue.language_id || currentLang?.language_id;
+
+    if (!keyId || !langId) {
+      const items = await ApiClient.getTranslations(game.id, selectedLangCode);
+      const match = items.find((i) => i.key_path === issue.key_path);
+      if (match) {
+        keyId = match.key_id;
+        langId = match.language_id;
+      }
+    }
+
+    if (!keyId || !langId) throw new Error(`Could not find key ID for ${issue.key_path}`);
+
+    await ApiClient.updateTranslationItem({
+      key_id: keyId,
+      language_id: langId,
+      translated_text: fixedText,
+      status: 'manual_translated',
+    });
+
+    markIssueApplied(issue.key_path, issue.issue_type, fixedText);
+  };
+
+  const handleApplyAllFixes = async () => {
+    const fixable = issues.filter((i) => !i.applied && i.suggestion);
+    if (fixable.length === 0) return;
+
+    const items = await ApiClient.getTranslations(game.id, selectedLangCode);
+    const keyMap = new Map(items.map((i) => [i.key_path, i]));
+    const appliedKeys = new Set<string>();
+
+    for (const issue of fixable) {
+      const keyInfo = keyMap.get(issue.key_path);
+      const keyId = issue.key_id || keyInfo?.key_id;
+      const langId = issue.language_id || keyInfo?.language_id || currentLang?.language_id;
+
+      if (keyId && langId && issue.suggestion) {
+        try {
+          await ApiClient.updateTranslationItem({
+            key_id: keyId,
+            language_id: langId,
+            translated_text: issue.suggestion,
+            status: 'manual_translated',
+          });
+          appliedKeys.add(`${issue.key_path}_${issue.issue_type}`);
+        } catch (e) {
+          console.error(`Failed to apply fix for ${issue.key_path}:`, e);
+        }
+      }
+    }
+
+    markAllApplied(appliedKeys);
+    setInfoMessage(`Successfully applied ${appliedKeys.size} translation fixes to the database!`);
   };
 
   const handleAddSingleCandidate = async (candidate: GlossaryCandidate) => {
@@ -64,127 +198,59 @@ export const GeminiInspectorPanel: React.FC<GeminiInspectorPanelProps> = ({
       notes: c.explanation,
     }));
     await ApiClient.batchAddGlossary(game.id, entries);
-    alert(`Successfully added ${entries.length} terms to the glossary!`);
+    setInfoMessage(`Successfully added ${entries.length} terms to the glossary!`);
   };
+
+  const unappliedFixesCount = issues.filter((i) => !i.applied && Boolean(i.suggestion)).length;
 
   return (
     <div className="space-y-4 font-mono">
-      {/* Header Banner */}
-      <div className="bg-[#161B22] border border-[#30363D] p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <h2 className="text-sm font-bold text-[#E6EDF3] flex items-center gap-2 uppercase tracking-wider">
-            <Sparkles className="w-4 h-4 text-[#3FB950]" />
-            <span>Google Gemini Terminology & QA Inspector</span>
-          </h2>
-          <p className="text-xs text-[#8B949E] max-w-2xl leading-relaxed">
-            Audits translations against world context. Extracts terminology candidates and detects placeholder mismatches and tone drift.
-          </p>
-        </div>
+      <InspectorHeader
+        selectedLangCode={selectedLangCode}
+        onSelectLangCode={setSelectedLangCode}
+        languages={languages}
+        isAnalyzing={isAnalyzing}
+        onRunAiInspector={handleRunAiInspector}
+        hasStoredData={Boolean(candidates.length > 0 || issues.length > 0 || validationSummary)}
+        onClearResults={clearResults}
+      />
 
-        <div className="flex items-center gap-2">
-          <select
-            value={selectedLangCode}
-            onChange={(e) => setSelectedLangCode(e.target.value)}
-            className="bg-[#0D1117] border border-[#30363D] px-2.5 py-1.5 text-xs text-[#E6EDF3] outline-none focus:border-[#5865F2]"
-          >
-            {game.languages?.map((l) => (
-              <option key={l.language_id} value={l.language_code}>
-                {l.language_name} ({l.language_code})
-              </option>
-            ))}
-          </select>
+      {error && <div className="p-3 bg-[#E5534B]/10 border border-[#E5534B] text-[#F85149] text-xs">{error}</div>}
+      {infoMessage && <div className="p-3 bg-[#5865F2]/10 border border-[#5865F2] text-[#5865F2] text-xs">ℹ️ {infoMessage}</div>}
 
-          <button
-            onClick={handleRunInspector}
-            disabled={isAnalyzing || !selectedLangCode}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold bg-[#3FB950] hover:bg-[#56D364] text-slate-950 border border-[#3FB950] transition-colors disabled:opacity-50"
-          >
-            {isAnalyzing ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                <span>INSPECTING...</span>
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>RUN QA INSPECTOR</span>
-              </>
-            )}
-          </button>
-        </div>
-      </div>
+      <AutoCheckSummaryCard
+        summary={validationSummary}
+        isRunning={isValidating}
+        onRunCodeValidator={handleRunCodeValidator}
+        onApplyAllFixes={handleApplyAllFixes}
+        hasFixableIssues={unappliedFixesCount > 0}
+      />
 
-      {error && (
-        <div className="p-3 bg-[#E5534B]/10 border border-[#E5534B] text-[#F85149] text-xs">
-          {error}
-        </div>
-      )}
+      <InspectorTabs
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        issuesCount={issues.length}
+        candidatesCount={candidates.length}
+        onAddAllCandidates={handleAddAllCandidates}
+      />
 
-      {infoMessage && (
-        <div className="p-3 bg-[#5865F2]/10 border border-[#5865F2] text-[#5865F2] text-xs">
-          ℹ️ {infoMessage}
-        </div>
-      )}
-
-      {/* Tabs for Results */}
-      <div className="flex items-center justify-between border-b border-[#30363D] pb-2">
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => setActiveTab('candidates')}
-            className={`flex items-center gap-1.5 px-3 py-1 text-xs font-bold border transition-colors ${
-              activeTab === 'candidates'
-                ? 'bg-[#5865F2] text-white border-[#5865F2]'
-                : 'bg-[#0D1117] text-[#8B949E] hover:text-[#E6EDF3] border-[#30363D]'
-            }`}
-          >
-            <BookOpen className="w-3 h-3" />
-            <span>CANDIDATES ({candidates.length})</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('issues')}
-            className={`flex items-center gap-1.5 px-3 py-1 text-xs font-bold border transition-colors ${
-              activeTab === 'issues'
-                ? 'bg-[#5865F2] text-white border-[#5865F2]'
-                : 'bg-[#0D1117] text-[#8B949E] hover:text-[#E6EDF3] border-[#30363D]'
-            }`}
-          >
-            <AlertTriangle className="w-3 h-3" />
-            <span>ISSUES ({issues.length})</span>
-          </button>
-        </div>
-
-        {activeTab === 'candidates' && candidates.length > 0 && (
-          <button
-            onClick={handleAddAllCandidates}
-            className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold bg-[#3FB950]/20 hover:bg-[#3FB950]/30 text-[#56D364] border border-[#3FB950] transition-colors"
-          >
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>ADD ALL TO GLOSSARY</span>
-          </button>
-        )}
-      </div>
-
-      {/* Results View */}
-      {activeTab === 'candidates' && (
-        <div>
-          {candidates.length === 0 ? (
-            <div className="p-10 text-center text-[#8B949E] bg-[#161B22] border border-[#30363D]">
-              <Sparkles className="w-8 h-8 text-[#8B949E] mx-auto mb-2" />
-              <div className="text-xs font-bold mb-1 text-[#E6EDF3]">NO GLOSSARY CANDIDATES YET</div>
+      {activeTab === 'auto_checks' && (
+        <div className="space-y-3">
+          {issues.filter((i) => i.issue_type === 'tab_mismatch' || i.issue_type === 'symbol_mismatch' || i.issue_type === 'formatting_loss').length === 0 ? (
+            <div className="p-8 text-center text-[#8B949E] bg-[#161B22] border border-[#30363D]">
+              <ShieldCheck className="w-8 h-8 text-[#3FB950] mx-auto mb-2" />
+              <div className="text-xs font-bold mb-1 text-[#E6EDF3]">NO CODE PARITY ISSUES FOUND</div>
               <div className="text-[11px] text-[#8B949E]">
-                Click "RUN QA INSPECTOR" to analyze translations and extract key terms.
+                Tabs, brackets, format tags, and variables are matching correctly across all scanned pairs.
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {candidates.map((candidate, idx) => (
-                <GlossaryCandidateCard
-                  key={idx}
-                  candidate={candidate}
-                  onAdd={handleAddSingleCandidate}
-                />
-              ))}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {issues
+                .filter((i) => i.issue_type === 'tab_mismatch' || i.issue_type === 'symbol_mismatch' || i.issue_type === 'formatting_loss')
+                .map((issue, idx) => (
+                  <TranslationIssueCard key={idx} issue={issue} onApplyFix={handleApplyFix} />
+                ))}
             </div>
           )}
         </div>
@@ -196,14 +262,30 @@ export const GeminiInspectorPanel: React.FC<GeminiInspectorPanelProps> = ({
             <div className="p-10 text-center text-[#8B949E] bg-[#161B22] border border-[#30363D]">
               <CheckCircle2 className="w-8 h-8 text-[#3FB950] mx-auto mb-2" />
               <div className="text-xs font-bold mb-1 text-[#E6EDF3]">NO QUALITY ISSUES DETECTED</div>
-              <div className="text-[11px] text-[#8B949E]">
-                Translations adhere to formatting constraints and glossary terms.
-              </div>
+              <div className="text-[11px] text-[#8B949E]">Translations adhere to formatting constraints and glossary terms.</div>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {issues.map((issue, idx) => (
-                <TranslationIssueCard key={idx} issue={issue} />
+                <TranslationIssueCard key={idx} issue={issue} onApplyFix={handleApplyFix} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'candidates' && (
+        <div>
+          {candidates.length === 0 ? (
+            <div className="p-10 text-center text-[#8B949E] bg-[#161B22] border border-[#30363D]">
+              <Sparkles className="w-8 h-8 text-[#8B949E] mx-auto mb-2" />
+              <div className="text-xs font-bold mb-1 text-[#E6EDF3]">NO GLOSSARY CANDIDATES YET</div>
+              <div className="text-[11px] text-[#8B949E]">Click "RUN AI INSPECTOR" to analyze translations and extract key terms.</div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {candidates.map((candidate, idx) => (
+                <GlossaryCandidateCard key={idx} candidate={candidate} onAdd={handleAddSingleCandidate} />
               ))}
             </div>
           )}

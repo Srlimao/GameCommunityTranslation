@@ -67,10 +67,24 @@ geminiRouter.post('/analyze', async (req: Request, res: Response) => {
       userId: (req as any).user?.id,
     });
 
+    const keyMap = new Map<string, { keyId: string; languageId: string }>();
+    for (const t of translations) {
+      keyMap.set(t.key_path, { keyId: t.key_id, languageId: t.language_id });
+    }
+
+    const enrichedIssues = analysis.issues.map(issue => {
+      const info = keyMap.get(issue.key_path);
+      return {
+        ...issue,
+        key_id: info?.keyId,
+        language_id: info?.languageId || targetLang.language_id,
+      };
+    });
+
     res.json({
       success: true,
       candidates: analysis.candidates,
-      issues: analysis.issues,
+      issues: enrichedIssues,
     });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });

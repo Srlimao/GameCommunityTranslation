@@ -124,12 +124,15 @@ export interface GlossaryCandidate {
 }
 
 export interface TranslationIssue {
+  key_id?: string;
+  language_id?: string;
   key_path: string;
   source_text: string;
   translated_text: string;
-  issue_type: 'placeholder_mismatch' | 'terminology_inconsistency' | 'formatting_loss' | 'meaning_drift';
+  issue_type: 'placeholder_mismatch' | 'terminology_inconsistency' | 'formatting_loss' | 'meaning_drift' | 'tab_mismatch' | 'symbol_mismatch';
   message: string;
   suggestion?: string;
+  applied?: boolean;
 }
 
 export type UserRole = 'admin' | 'translator' | 'viewer';

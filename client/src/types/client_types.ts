@@ -5,6 +5,7 @@ export interface GameSummary {
   context_prompt: string;
   base_language: string;
   totalKeys: number;
+  glossaryCount?: number;
   languages: LanguageProgress[];
   raw_json_template?: string;
   schema_config?: string;
@@ -119,12 +120,15 @@ export interface GlossaryCandidate {
 }
 
 export interface TranslationIssue {
+  key_id?: string;
+  language_id?: string;
   key_path: string;
   source_text: string;
   translated_text: string;
-  issue_type: 'placeholder_mismatch' | 'terminology_inconsistency' | 'formatting_loss' | 'meaning_drift';
+  issue_type: 'placeholder_mismatch' | 'terminology_inconsistency' | 'formatting_loss' | 'meaning_drift' | 'tab_mismatch' | 'symbol_mismatch';
   message: string;
   suggestion?: string;
+  applied?: boolean;
 }
 
 export interface BatchProgressData {
