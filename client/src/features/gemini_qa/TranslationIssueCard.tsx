@@ -61,16 +61,9 @@ export const TranslationIssueCard: React.FC<TranslationIssueCardProps> = ({ issu
   const [editedSuggestion, setEditedSuggestion] = useState(issue.suggestion || '');
   const [isEditing, setIsEditing] = useState(false);
 
-  const handleApply = async () => {
+  const handleApply = () => {
     if (!onApplyFix || !editedSuggestion) return;
-    setIsApplying(true);
-    try {
-      await onApplyFix(issue, editedSuggestion);
-    } catch (err) {
-      console.error('Failed to apply fix:', err);
-    } finally {
-      setIsApplying(false);
-    }
+    onApplyFix(issue, editedSuggestion);
   };
 
   return (

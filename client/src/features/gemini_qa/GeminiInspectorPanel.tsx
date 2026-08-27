@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { GameSummary, GlossaryCandidate, TranslationIssue } from '../../types/client_types.ts';
 import { ApiClient } from '../../services/api_client.ts';
 import { GlossaryCandidateCard } from './GlossaryCandidateCard.tsx';
@@ -7,9 +7,10 @@ import { AutoCheckSummaryCard } from './AutoCheckSummaryCard.tsx';
 import { InspectorHeader } from './InspectorHeader.tsx';
 import { InspectorTabs } from './InspectorTabs.tsx';
 import { TagWhitelistModal } from './TagWhitelistModal.tsx';
+import { BatchAiFixModal } from './BatchAiFixModal.tsx';
 import { CodeValidator } from './code_validator.ts';
 import { useInspectorStore } from './use_inspector_store.ts';
-import { Sparkles, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { Sparkles, CheckCircle2, ShieldCheck, Save, Loader2 } from 'lucide-react';
 
 interface GeminiInspectorPanelProps {
   game: GameSummary;
@@ -21,60 +22,45 @@ export const GeminiInspectorPanel: React.FC<GeminiInspectorPanelProps> = ({
   initialLanguageCode,
 }) => {
   const {
-    selectedLangCode,
-    activeTab,
-    candidates,
-    issues,
-    validationSummary,
-    setSelectedLangCode,
-    setActiveTab,
-    setCandidates,
-    addOrMergeIssues,
-    markIssueApplied,
-    markAllApplied,
-    setValidationSummary,
-    clearResults,
+    selectedLangCode, activeTab, candidates, issues, validationSummary,
+    setSelectedLangCode, setActiveTab, setCandidates, addOrMergeIssues,
+    updateIssueSuggestions, markIssueApplied, markAllApplied, setValidationSummary, clearResults,
   } = useInspectorStore(game.id, initialLanguageCode || game.languages?.[0]?.language_code || '');
 
   const [languages, setLanguages] = useState(game.languages || []);
   const [whitelistTags, setWhitelistTags] = useState<string[]>(game.whitelist_tags || []);
   const [isWhitelistModalOpen, setIsWhitelistModalOpen] = useState(false);
+  const [isBatchAiModalOpen, setIsBatchAiModalOpen] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  React.useEffect(() => {
+  const [pendingFixes, setPendingFixes] = useState<Map<string, { key_path: string; key_id?: string; translated_text: string }>>(() => new Map());
+  const [isSavingFixes, setIsSavingFixes] = useState(false);
+
+  useEffect(() => {
     if (game.whitelist_tags) setWhitelistTags(game.whitelist_tags);
   }, [game.whitelist_tags]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (game.languages?.length) {
       setLanguages(game.languages);
       if (!selectedLangCode) setSelectedLangCode(game.languages[0].language_code);
     } else {
       ApiClient.getLanguages(game.id).then((langs) => {
-        if (langs?.length) {
-          setLanguages(langs);
-          if (!selectedLangCode) setSelectedLangCode(langs[0].language_code);
-        }
+        if (langs?.length) { setLanguages(langs); if (!selectedLangCode) setSelectedLangCode(langs[0].language_code); }
       }).catch(console.error);
     }
   }, [game.id, game.languages, selectedLangCode, setSelectedLangCode]);
 
-  const currentLang = languages.find((l) => l.language_code === selectedLangCode);
-
   const resolveTargetLang = async (): Promise<string | undefined> => {
     let targetLang = selectedLangCode;
     if (!targetLang) {
-      if (languages.length > 0) {
-        targetLang = languages[0].language_code;
-      } else {
+      if (languages.length > 0) targetLang = languages[0].language_code;
+      else {
         const fetched = await ApiClient.getLanguages(game.id);
-        if (fetched?.length) {
-          setLanguages(fetched);
-          targetLang = fetched[0].language_code;
-        }
+        if (fetched?.length) { setLanguages(fetched); targetLang = fetched[0].language_code; }
       }
       if (targetLang) setSelectedLangCode(targetLang);
     }
@@ -102,10 +88,7 @@ export const GeminiInspectorPanel: React.FC<GeminiInspectorPanelProps> = ({
   const handleRunAiInspector = async () => {
     const targetLang = await resolveTargetLang();
     if (!targetLang) return;
-    setIsAnalyzing(true);
-    setError(null);
-    setInfoMessage(null);
-
+    setIsAnalyzing(true); setError(null); setInfoMessage(null);
     try {
       const result = await ApiClient.analyzeWithGemini(game.id, targetLang);
       setCandidates(result.candidates || []);
@@ -118,96 +101,76 @@ export const GeminiInspectorPanel: React.FC<GeminiInspectorPanelProps> = ({
     }
   };
 
-  const handleApplyFix = async (issue: TranslationIssue, fixedText: string) => {
-    let keyId = issue.key_id;
-    let langId = issue.language_id || currentLang?.language_id;
-
-    if (!keyId || !langId) {
-      const items = await ApiClient.getTranslations(game.id, selectedLangCode);
-      const match = items.find((i) => i.key_path === issue.key_path);
-      if (match) {
-        keyId = match.key_id;
-        langId = match.language_id;
-      }
-    }
-
-    if (!keyId || !langId) throw new Error(`Could not find key ID for ${issue.key_path}`);
-
-    await ApiClient.updateTranslationItem({
-      key_id: keyId,
-      language_id: langId,
-      translated_text: fixedText,
-      status: 'manual_translated',
-    });
-
+  const handleApplyFix = (issue: TranslationIssue, fixedText: string) => {
     markIssueApplied(issue.key_path, issue.issue_type, fixedText);
+    setPendingFixes((prev) => {
+      const next = new Map(prev);
+      next.set(issue.key_path, { key_path: issue.key_path, key_id: issue.key_id, translated_text: fixedText });
+      return next;
+    });
   };
 
-  const handleApplyAllFixes = async () => {
+  const handleApplyAllFixes = () => {
     const fixable = issues.filter((i) => !i.applied && i.suggestion);
     if (fixable.length === 0) return;
-
-    const items = await ApiClient.getTranslations(game.id, selectedLangCode);
-    const keyMap = new Map(items.map((i) => [i.key_path, i]));
-    const appliedKeys = new Set<string>();
-
-    for (const issue of fixable) {
-      const keyInfo = keyMap.get(issue.key_path);
-      const keyId = issue.key_id || keyInfo?.key_id;
-      const langId = issue.language_id || keyInfo?.language_id || currentLang?.language_id;
-
-      if (keyId && langId && issue.suggestion) {
-        try {
-          await ApiClient.updateTranslationItem({
-            key_id: keyId,
-            language_id: langId,
-            translated_text: issue.suggestion,
-            status: 'manual_translated',
-          });
-          appliedKeys.add(`${issue.key_path}_${issue.issue_type}`);
-        } catch (e) {
-          console.error(`Failed to apply fix for ${issue.key_path}:`, e);
-        }
-      }
-    }
-
-    markAllApplied(appliedKeys);
-    setInfoMessage(`Successfully applied ${appliedKeys.size} translation fixes to the database!`);
+    markAllApplied(new Set(fixable.map((i) => `${i.key_path}_${i.issue_type}`)));
+    setPendingFixes((prev) => {
+      const next = new Map(prev);
+      fixable.forEach((i) => { if (i.suggestion) next.set(i.key_path, { key_path: i.key_path, key_id: i.key_id, translated_text: i.suggestion }); });
+      return next;
+    });
   };
 
+  const handleFixAppliedFromModal = (fixes: Array<{ key_path: string; fixed_translation: string }>, autoApply?: boolean) => {
+    updateIssueSuggestions(fixes, autoApply);
+    if (autoApply) {
+      setPendingFixes((prev) => {
+        const next = new Map(prev);
+        fixes.forEach((f) => { next.set(f.key_path, { key_path: f.key_path, translated_text: f.fixed_translation }); });
+        return next;
+      });
+    }
+  };
+
+  const handleSaveAllPendingFixes = async () => {
+    if (pendingFixes.size === 0) return;
+    setIsSavingFixes(true); setError(null);
+    try {
+      const count = await ApiClient.updateMultipleTranslationItems(game.id, selectedLangCode, Array.from(pendingFixes.values()));
+      setPendingFixes(new Map());
+      setInfoMessage(`Successfully saved ${count} fix(es) to cloud storage!`);
+    } catch (err: any) {
+      setError(err.message || 'Failed to save fixes');
+    } finally {
+      setIsSavingFixes(false);
+    }
+  };
+
+  useEffect(() => {
+    if (pendingFixes.size === 0) return;
+    const timer = setTimeout(() => { handleSaveAllPendingFixes(); }, 3000);
+    return () => clearTimeout(timer);
+  }, [pendingFixes]);
+
   const handleAddSingleCandidate = async (candidate: GlossaryCandidate) => {
-    await ApiClient.addGlossaryEntry(game.id, {
-      source_term: candidate.source_term,
-      target_term: candidate.suggested_translation,
-      target_language: selectedLangCode,
-      category: candidate.category,
-      notes: candidate.explanation,
-    });
+    await ApiClient.addGlossaryEntry(game.id, { source_term: candidate.source_term, target_term: candidate.suggested_translation, target_language: selectedLangCode, category: candidate.category, notes: candidate.explanation });
   };
 
   const handleAddAllCandidates = async () => {
     if (candidates.length === 0) return;
-    const entries = candidates.map((c) => ({
-      source_term: c.source_term,
-      target_term: c.suggested_translation,
-      target_language: selectedLangCode,
-      category: c.category,
-      notes: c.explanation,
-    }));
+    const entries = candidates.map((c) => ({ source_term: c.source_term, target_term: c.suggested_translation, target_language: selectedLangCode, category: c.category, notes: c.explanation }));
     await ApiClient.batchAddGlossary(game.id, entries);
     setInfoMessage(`Successfully added ${entries.length} terms to the glossary!`);
   };
 
+  const currentLang = languages.find((l) => l.language_code === selectedLangCode);
   const unappliedFixesCount = issues.filter((i) => !i.applied && Boolean(i.suggestion)).length;
 
   return (
     <div className="space-y-4 font-mono">
       <InspectorHeader
-        selectedLangCode={selectedLangCode}
-        onSelectLangCode={setSelectedLangCode}
-        languages={languages}
-        isAnalyzing={isAnalyzing}
-        onRunAiInspector={handleRunAiInspector}
+        selectedLangCode={selectedLangCode} onSelectLangCode={setSelectedLangCode}
+        languages={languages} isAnalyzing={isAnalyzing} onRunAiInspector={handleRunAiInspector}
         hasStoredData={Boolean(candidates.length > 0 || issues.length > 0 || validationSummary)}
         onClearResults={clearResults}
       />
@@ -215,37 +178,38 @@ export const GeminiInspectorPanel: React.FC<GeminiInspectorPanelProps> = ({
       {error && <div className="p-3 bg-[#E5534B]/10 border border-[#E5534B] text-[#F85149] text-xs">{error}</div>}
       {infoMessage && <div className="p-3 bg-[#5865F2]/10 border border-[#5865F2] text-[#5865F2] text-xs">ℹ️ {infoMessage}</div>}
 
+      {pendingFixes.size > 0 && (
+        <div className="bg-[#10141D] border border-[#5865F2] p-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs shadow-lg">
+          <div className="flex items-center gap-2 text-[#E6EDF3]">
+            <div className="w-2.5 h-2.5 rounded-full bg-[#3FB950] animate-pulse" />
+            <span><strong>{pendingFixes.size}</strong> fix(es) applied locally</span>
+            <span className="text-[#8B949E] text-[11px]">(Autosaving in 3s or save now)</span>
+          </div>
+          <button onClick={handleSaveAllPendingFixes} disabled={isSavingFixes} className="px-3.5 py-1.5 bg-[#238636] hover:bg-[#2EA043] text-white font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50">
+            {isSavingFixes ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+            <span>SAVE {pendingFixes.size} FIXES TO CLOUD</span>
+          </button>
+        </div>
+      )}
+
       <AutoCheckSummaryCard
-        summary={validationSummary}
-        isRunning={isValidating}
-        onRunCodeValidator={handleRunCodeValidator}
-        onApplyAllFixes={handleApplyAllFixes}
-        hasFixableIssues={unappliedFixesCount > 0}
-        whitelistTagsCount={whitelistTags.length}
-        onOpenWhitelistModal={() => setIsWhitelistModalOpen(true)}
+        summary={validationSummary} isRunning={isValidating}
+        onRunCodeValidator={handleRunCodeValidator} onBatchAiFix={() => setIsBatchAiModalOpen(true)} onApplyAllFixes={handleApplyAllFixes}
+        hasFixableIssues={unappliedFixesCount > 0} totalIssuesCount={issues.filter(i => !i.applied).length}
+        whitelistTagsCount={whitelistTags.length} onOpenWhitelistModal={() => setIsWhitelistModalOpen(true)}
       />
 
-      <InspectorTabs
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        issuesCount={issues.length}
-        candidatesCount={candidates.length}
-        onAddAllCandidates={handleAddAllCandidates}
-      />
+      <InspectorTabs activeTab={activeTab} onTabChange={setActiveTab} issuesCount={issues.length} candidatesCount={candidates.length} onAddAllCandidates={handleAddAllCandidates} />
 
       {activeTab === 'auto_checks' && (() => {
-        const autoIssues = issues.filter((i) =>
-          ['tag_mismatch', 'placeholder_mismatch', 'tab_mismatch', 'symbol_mismatch', 'formatting_loss'].includes(i.issue_type)
-        );
+        const autoIssues = issues.filter((i) => ['tag_mismatch', 'placeholder_mismatch', 'tab_mismatch', 'symbol_mismatch', 'formatting_loss'].includes(i.issue_type));
         return (
           <div className="space-y-3">
             {autoIssues.length === 0 ? (
               <div className="p-8 text-center text-[#8B949E] bg-[#161B22] border border-[#30363D]">
                 <ShieldCheck className="w-8 h-8 text-[#3FB950] mx-auto mb-2" />
                 <div className="text-xs font-bold mb-1 text-[#E6EDF3]">NO CODE PARITY ISSUES FOUND</div>
-                <div className="text-[11px] text-[#8B949E]">
-                  Tags, tabs, brackets, variables, and formatting match correctly across all scanned keys.
-                </div>
+                <div className="text-[11px] text-[#8B949E]">Tags, tabs, brackets, variables, and formatting match correctly across all scanned keys.</div>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -259,7 +223,7 @@ export const GeminiInspectorPanel: React.FC<GeminiInspectorPanelProps> = ({
       })()}
 
       {activeTab === 'issues' && (
-        <div>
+        <div className="space-y-3">
           {issues.length === 0 ? (
             <div className="p-10 text-center text-[#8B949E] bg-[#161B22] border border-[#30363D]">
               <CheckCircle2 className="w-8 h-8 text-[#3FB950] mx-auto mb-2" />
@@ -294,12 +258,18 @@ export const GeminiInspectorPanel: React.FC<GeminiInspectorPanelProps> = ({
         </div>
       )}
 
-      <TagWhitelistModal
+      <TagWhitelistModal gameId={game.id} isOpen={isWhitelistModalOpen} onClose={() => setIsWhitelistModalOpen(false)} initialTags={whitelistTags} onTagsUpdated={(updated) => setWhitelistTags(updated)} />
+
+      <BatchAiFixModal
+        isOpen={isBatchAiModalOpen}
         gameId={game.id}
-        isOpen={isWhitelistModalOpen}
-        onClose={() => setIsWhitelistModalOpen(false)}
-        initialTags={whitelistTags}
-        onTagsUpdated={(updated) => setWhitelistTags(updated)}
+        gameName={game.name}
+        targetLanguageCode={selectedLangCode}
+        targetLanguageName={currentLang?.language_name || selectedLangCode}
+        issues={issues}
+        onClose={() => setIsBatchAiModalOpen(false)}
+        onFixApplied={handleFixAppliedFromModal}
+        onSaveToCloud={handleSaveAllPendingFixes}
       />
     </div>
   );

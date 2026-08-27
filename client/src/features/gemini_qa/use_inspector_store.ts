@@ -140,6 +140,24 @@ export function useInspectorStore(gameId: string, initialLangCode: string) {
     }
   }, [storageKey]);
 
+  const updateIssueSuggestions = useCallback((fixes: Array<{ key_path: string; fixed_translation: string }>, autoApply: boolean = false) => {
+    const fixMap = new Map(fixes.map((f) => [f.key_path, f.fixed_translation]));
+    setState((prev) => ({
+      ...prev,
+      issues: prev.issues.map((iss) => {
+        const fixed = fixMap.get(iss.key_path);
+        if (fixed) {
+          return {
+            ...iss,
+            suggestion: fixed,
+            ...(autoApply ? { applied: true, translated_text: fixed } : {}),
+          };
+        }
+        return iss;
+      }),
+    }));
+  }, []);
+
   return {
     ...state,
     setSelectedLangCode,
@@ -147,6 +165,7 @@ export function useInspectorStore(gameId: string, initialLangCode: string) {
     setCandidates,
     setIssues,
     addOrMergeIssues,
+    updateIssueSuggestions,
     markIssueApplied,
     markAllApplied,
     setValidationSummary,

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useDeferredValue } from 'react';
 import { KeyTranslationItem } from '../../types/client_types.ts';
 import {
   Folder,
@@ -95,17 +95,12 @@ export const KeyTreeExplorer: React.FC<KeyTreeExplorerProps> = ({
   onSelectPrefix,
 }) => {
   const [filterSearch, setFilterSearch] = useState('');
+  const deferredSearch = useDeferredValue(filterSearch);
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set());
 
-  // Aggregate hierarchical namespaces efficiently
+  // Aggregate hierarchical namespaces with fast string slicing
   const rootNode = useMemo(() => {
-    const root: NamespaceNode = {
-      name: 'root',
-      fullPath: '',
-      count: 0,
-      translatedCount: 0,
-      subfolders: {},
-    };
+    const root: NamespaceNode = { name: 'root', fullPath: '', count: 0, translatedCount: 0, subfolders: {} };
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
@@ -113,38 +108,35 @@ export const KeyTreeExplorer: React.FC<KeyTreeExplorerProps> = ({
       const isTranslated = Boolean(item.translated_text && item.status !== 'untranslated');
       if (isTranslated) root.translatedCount++;
 
-      let cleanKey = item.key_path;
-      if (cleanKey.startsWith('$$$') && cleanKey.endsWith('$$')) {
-        cleanKey = cleanKey.slice(3, -2);
+      let key = item.key_path;
+      if (key.startsWith('$$$') && key.endsWith('$$')) key = key.slice(3, -2);
+
+      let idx1 = key.indexOf('.');
+      if (idx1 === -1) idx1 = key.indexOf('/');
+      if (idx1 === -1) idx1 = key.indexOf(':');
+
+      const seg1 = idx1 !== -1 ? key.slice(0, idx1) : key;
+      if (!root.subfolders[seg1]) {
+        root.subfolders[seg1] = { name: seg1, fullPath: seg1, count: 0, translatedCount: 0, subfolders: {} };
       }
+      root.subfolders[seg1].count++;
+      if (isTranslated) root.subfolders[seg1].translatedCount++;
 
-      const segments = cleanKey.split(/[.:/]/).filter(Boolean);
-      // Group by namespaces (up to 3 levels)
-      const folderSegments = segments.length > 1 ? segments.slice(0, -1) : [segments[0]];
-
-      let current = root;
-      let currentPath = '';
-
-      for (let s = 0; s < folderSegments.length; s++) {
-        const seg = folderSegments[s];
-        currentPath = currentPath ? `${currentPath}.${seg}` : seg;
-
-        if (!current.subfolders[seg]) {
-          current.subfolders[seg] = {
-            name: seg,
-            fullPath: currentPath,
-            count: 0,
-            translatedCount: 0,
-            subfolders: {},
-          };
+      if (idx1 !== -1) {
+        const rest = key.slice(idx1 + 1);
+        let idx2 = rest.indexOf('.');
+        if (idx2 === -1) idx2 = rest.indexOf('/');
+        if (idx2 === -1) idx2 = rest.indexOf(':');
+        if (idx2 !== -1) {
+          const seg2 = rest.slice(0, idx2);
+          const p2 = `${seg1}.${seg2}`;
+          const parent = root.subfolders[seg1];
+          if (!parent.subfolders[seg2]) {
+            parent.subfolders[seg2] = { name: seg2, fullPath: p2, count: 0, translatedCount: 0, subfolders: {} };
+          }
+          parent.subfolders[seg2].count++;
+          if (isTranslated) parent.subfolders[seg2].translatedCount++;
         }
-
-        current.subfolders[seg].count++;
-        if (isTranslated) {
-          current.subfolders[seg].translatedCount++;
-        }
-
-        current = current.subfolders[seg];
       }
     }
 
@@ -174,13 +166,13 @@ export const KeyTreeExplorer: React.FC<KeyTreeExplorerProps> = ({
 
     return childrenKeys.map((key) => {
       const child = node.subfolders[key];
-      const isExpanded = expandedPaths.has(child.fullPath) || filterSearch.length > 0;
+      const isExpanded = expandedPaths.has(child.fullPath) || deferredSearch.length > 0;
       const isSelected = selectedPrefix === child.fullPath;
 
-      if (filterSearch) {
-        const matchesSelf = child.name.toLowerCase().includes(filterSearch.toLowerCase());
+      if (deferredSearch) {
+        const matchesSelf = child.name.toLowerCase().includes(deferredSearch.toLowerCase());
         const matchesChild = Object.values(child.subfolders).some((c) =>
-          c.fullPath.toLowerCase().includes(filterSearch.toLowerCase())
+          c.fullPath.toLowerCase().includes(deferredSearch.toLowerCase())
         );
         if (!matchesSelf && !matchesChild) return null;
       }

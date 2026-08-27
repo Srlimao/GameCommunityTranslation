@@ -23,13 +23,10 @@ export const JsonImportModal: React.FC<JsonImportModalProps> = ({
   const [step, setStep] = useState<'input' | 'mapping'>('input');
   const [jsonText, setJsonText] = useState('');
   const [analysis, setAnalysis] = useState<JsonAnalysisResult | null>(null);
-  const [schemaConfig, setSchemaConfig] = useState<JsonSchemaConfig>({
-    mode: 'nested_tree',
-    textFields: [],
-  });
+  const [schemaConfig, setSchemaConfig] = useState<JsonSchemaConfig>({ mode: 'nested_tree', textFields: [] });
   const [previewItems, setPreviewItems] = useState<JsonAnalysisResult['samplePreview']>([]);
-
   const [isLoading, setIsLoading] = useState(false);
+  const [progressStatus, setProgressStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -38,32 +35,22 @@ export const JsonImportModal: React.FC<JsonImportModalProps> = ({
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = (event) => {
-      const content = event.target?.result as string;
-      setJsonText(content);
+      setJsonText(event.target?.result as string);
       setError(null);
     };
-    reader.onerror = () => {
-      setError('Failed to read file');
-    };
+    reader.onerror = () => setError('Failed to read file');
     reader.readAsText(file);
   };
 
   const handleAnalyzeAndProceed = async () => {
-    if (!jsonText.trim()) {
-      setError('Please paste or upload JSON content first');
-      return;
-    }
-
+    if (!jsonText.trim()) return setError('Please paste or upload JSON content first');
     setIsLoading(true);
     setError(null);
-
     try {
       const result = await ApiClient.analyzeJson(gameId, jsonText);
       setAnalysis(result);
-
       const initialSchema: JsonSchemaConfig = {
         mode: result.structureType,
         rootPath: result.selectedListPath,
@@ -71,7 +58,6 @@ export const JsonImportModal: React.FC<JsonImportModalProps> = ({
         textFields: result.suggestedTextFields.length > 0 ? result.suggestedTextFields : [result.availableFields[0]],
         contextField: result.suggestedContextField,
       };
-
       setSchemaConfig(initialSchema);
       setPreviewItems(result.samplePreview);
       setStep('mapping');
@@ -84,96 +70,76 @@ export const JsonImportModal: React.FC<JsonImportModalProps> = ({
 
   const handleChangeSchema = (newSchema: JsonSchemaConfig) => {
     setSchemaConfig(newSchema);
-    if (analysis && jsonText) {
-      try {
-        const parsed = JSON.parse(jsonText);
-        let sample: any[] = [];
+    if (!analysis || !jsonText) return;
+    try {
+      const parsed = JSON.parse(jsonText);
+      let sample: any[] = [];
+      if (newSchema.rootPath && parsed && typeof parsed === 'object' && Array.isArray(parsed[newSchema.rootPath])) {
+        sample = parsed[newSchema.rootPath].slice(0, 8);
+      } else if (Array.isArray(parsed)) {
+        sample = parsed.slice(0, 8);
+      }
 
-        if (newSchema.rootPath && parsed && typeof parsed === 'object' && Array.isArray(parsed[newSchema.rootPath])) {
-          sample = parsed[newSchema.rootPath].slice(0, 8);
-        } else if (Array.isArray(parsed)) {
-          sample = parsed.slice(0, 8);
-        }
-
-        if (sample.length > 0 && newSchema.mode === 'array_of_objects') {
-          const updatedPreview: any[] = [];
-          sample.forEach((item, index) => {
-            if (!item || typeof item !== 'object') return;
-            const idVal = newSchema.keyField && newSchema.keyField !== '_index' && item[newSchema.keyField] !== undefined
-              ? String(item[newSchema.keyField])
-              : `item[${index}]`;
-
-            const contextNote = newSchema.contextField && item[newSchema.contextField] !== undefined
-              ? String(item[newSchema.contextField])
-              : undefined;
-
-            const ignored: Record<string, any> = {};
-            for (const [k, v] of Object.entries(item)) {
-              if (k !== newSchema.keyField && !newSchema.textFields.includes(k) && k !== newSchema.contextField) {
-                ignored[k] = v;
-              }
+      if (sample.length > 0 && newSchema.mode === 'array_of_objects') {
+        const updated: any[] = [];
+        sample.forEach((item, index) => {
+          if (!item || typeof item !== 'object') return;
+          const idVal = newSchema.keyField && newSchema.keyField !== '_index' && item[newSchema.keyField] !== undefined
+            ? String(item[newSchema.keyField])
+            : `item[${index}]`;
+          const contextNote = newSchema.contextField && item[newSchema.contextField] !== undefined
+            ? String(item[newSchema.contextField]) : undefined;
+          const ignored: Record<string, any> = {};
+          for (const [k, v] of Object.entries(item)) {
+            if (k !== newSchema.keyField && !newSchema.textFields.includes(k) && k !== newSchema.contextField) ignored[k] = v;
+          }
+          for (const tf of newSchema.textFields) {
+            if (item[tf] !== undefined) {
+              const keyPath = newSchema.textFields.length === 1 && newSchema.keyField && newSchema.keyField !== '_index'
+                ? idVal : `${idVal}.${tf}`;
+              updated.push({ keyPath, sourceText: String(item[tf]), contextNote, ignoredAttributes: ignored });
             }
-
-            for (const tf of newSchema.textFields) {
-              if (item[tf] !== undefined) {
-                const keyPath = newSchema.textFields.length === 1 && newSchema.keyField && newSchema.keyField !== '_index'
-                  ? idVal
-                  : `${idVal}.${tf}`;
-                updatedPreview.push({
-                  keyPath,
-                  sourceText: String(item[tf]),
-                  contextNote,
-                  ignoredAttributes: ignored,
-                });
-              }
-            }
-          });
-          setPreviewItems(updatedPreview);
-        } else if (newSchema.mode === 'grouped_dictionary' && typeof parsed === 'object' && parsed !== null) {
-          const updatedPreview: any[] = [];
-          for (const [groupKey, groupVal] of Object.entries(parsed)) {
-            if (updatedPreview.length >= 8) break;
-            if (groupVal && typeof groupVal === 'object' && !Array.isArray(groupVal)) {
-              for (const [k, v] of Object.entries(groupVal)) {
-                if (updatedPreview.length >= 8) break;
-                if (typeof v === 'string') {
-                  updatedPreview.push({
-                    keyPath: `${groupKey}.${k}`,
-                    sourceText: v,
-                    contextNote: groupKey,
-                    ignoredAttributes: {},
-                  });
-                }
+          }
+        });
+        setPreviewItems(updated);
+      } else if (newSchema.mode === 'grouped_dictionary' && typeof parsed === 'object' && parsed !== null) {
+        const updated: any[] = [];
+        for (const [groupKey, groupVal] of Object.entries(parsed)) {
+          if (updated.length >= 8) break;
+          if (groupVal && typeof groupVal === 'object' && !Array.isArray(groupVal)) {
+            for (const [k, v] of Object.entries(groupVal)) {
+              if (updated.length >= 8) break;
+              if (typeof v === 'string') {
+                updated.push({ keyPath: `${groupKey}.${k}`, sourceText: v, contextNote: groupKey, ignoredAttributes: {} });
               }
             }
           }
-          setPreviewItems(updatedPreview);
-        } else if (newSchema.mode === 'dictionary_kv' && typeof parsed === 'object' && parsed !== null) {
-          setPreviewItems(
-            Object.entries(parsed).slice(0, 8).map(([k, v]) => ({
-              keyPath: k,
-              sourceText: String(v),
-              contextNote: '',
-              ignoredAttributes: {},
-            }))
-          );
         }
-      } catch {}
-    }
+        setPreviewItems(updated);
+      } else if (newSchema.mode === 'dictionary_kv' && typeof parsed === 'object' && parsed !== null) {
+        setPreviewItems(Object.entries(parsed).slice(0, 8).map(([k, v]) => ({
+          keyPath: k, sourceText: String(v), contextNote: '', ignoredAttributes: {}
+        })));
+      }
+    } catch {}
   };
 
   const handleConfirmImport = async () => {
     setIsLoading(true);
     setError(null);
-
+    setProgressStatus('Initializing import...');
     try {
-      const res = await ApiClient.importBaseJson(gameId, jsonText, schemaConfig);
+      const res = await ApiClient.importBaseJson(gameId, jsonText, schemaConfig, (completed, total) => {
+        const percent = Math.round((completed / total) * 100);
+        setProgressStatus(`Saving chunk ${completed} of ${total} (${percent}%)...`);
+      });
       setSuccessMessage(res.message);
       onImportSuccess(res.importedCount);
       setTimeout(() => {
         onClose();
         setStep('input');
         setSuccessMessage(null);
+        setProgressStatus(null);
       }, 1500);
     } catch (err: any) {
       setError(err.message || 'Import failed');
@@ -184,15 +150,13 @@ export const JsonImportModal: React.FC<JsonImportModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 font-mono overflow-y-auto">
-      <div className="bg-[#161B22] border border-[#30363D] w-full max-w-3xl overflow-hidden shadow-none my-8">
+      <div className="bg-[#161B22] border border-[#30363D] w-full max-w-3xl overflow-hidden my-8">
         <div className="flex items-center justify-between px-4 py-3 border-b border-[#30363D] bg-[#10141D]">
           <div className="flex items-center gap-2">
             <FileCode className="w-4 h-4 text-[#5865F2]" />
-            <div>
-              <h2 className="font-bold text-xs uppercase tracking-wider text-[#E6EDF3]">
-                {step === 'input' ? 'Import Base Reference JSON' : 'Schema & Key Mapping'}
-              </h2>
-            </div>
+            <h2 className="font-bold text-xs uppercase tracking-wider text-[#E6EDF3]">
+              {step === 'input' ? 'Import Base Reference JSON' : 'Schema & Key Mapping'}
+            </h2>
           </div>
           <button onClick={onClose} className="text-[#8B949E] hover:text-[#E6EDF3] p-1">
             <X className="w-4 h-4" />
@@ -211,6 +175,13 @@ export const JsonImportModal: React.FC<JsonImportModalProps> = ({
             <div className="p-2.5 bg-[#3FB950]/10 border border-[#3FB950] text-[#56D364] flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
               <span>{successMessage}</span>
+            </div>
+          )}
+
+          {progressStatus && isLoading && (
+            <div className="p-2.5 bg-[#5865F2]/10 border border-[#5865F2] text-[#5865F2] flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+              <span className="font-bold">{progressStatus}</span>
             </div>
           )}
 
@@ -238,10 +209,7 @@ export const JsonImportModal: React.FC<JsonImportModalProps> = ({
                 <textarea
                   rows={8}
                   value={jsonText}
-                  onChange={(e) => {
-                    setJsonText(e.target.value);
-                    setError(null);
-                  }}
+                  onChange={(e) => { setJsonText(e.target.value); setError(null); }}
                   placeholder='[ { "id": "quest_01", "speaker": "Elder", "text": "Take this sword.", "audio_id": 101 } ]'
                   className="w-full bg-[#0D1117] border border-[#30363D] p-2.5 text-xs text-[#E6EDF3] focus:border-[#5865F2] font-mono outline-none"
                 />
@@ -250,32 +218,28 @@ export const JsonImportModal: React.FC<JsonImportModalProps> = ({
           ) : (
             analysis && (
               <div className="space-y-4">
-                <JsonSchemaMappingStep
-                  analysis={analysis}
-                  schemaConfig={schemaConfig}
-                  onChangeSchema={handleChangeSchema}
-                />
-
+                <JsonSchemaMappingStep analysis={analysis} schemaConfig={schemaConfig} onChangeSchema={handleChangeSchema} />
                 <JsonPreviewTable items={previewItems} />
               </div>
             )
           )}
 
-          {/* Action Footer */}
           <div className="flex items-center justify-between pt-3 border-t border-[#30363D]">
             {step === 'mapping' ? (
               <button
                 type="button"
                 onClick={() => setStep('input')}
-                className="flex items-center gap-1 px-3 py-1.5 text-xs text-[#8B949E] hover:text-[#E6EDF3] border border-[#30363D] bg-[#0D1117]"
+                disabled={isLoading}
+                className="flex items-center gap-1 px-3 py-1.5 text-xs text-[#8B949E] hover:text-[#E6EDF3] border border-[#30363D] bg-[#0D1117] disabled:opacity-50"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Back to JSON Input</span>
+                <span>Back</span>
               </button>
             ) : (
               <button
                 type="button"
                 onClick={onClose}
+                disabled={isLoading}
                 className="px-3 py-1.5 text-xs text-[#8B949E] hover:text-[#E6EDF3] border border-[#30363D] bg-[#0D1117]"
               >
                 Cancel
@@ -290,7 +254,7 @@ export const JsonImportModal: React.FC<JsonImportModalProps> = ({
                 className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold bg-[#5865F2] hover:bg-[#4C6EF5] text-white border border-[#5865F2] transition-colors disabled:opacity-50"
               >
                 {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-                <span>Next: Configure Structure & Mapping</span>
+                <span>Next: Mapping</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             ) : (
@@ -301,7 +265,7 @@ export const JsonImportModal: React.FC<JsonImportModalProps> = ({
                 className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold bg-[#5865F2] hover:bg-[#4C6EF5] text-white border border-[#5865F2] transition-colors disabled:opacity-50"
               >
                 {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-                <span>Confirm & Import Keys</span>
+                <span>Confirm & Import</span>
               </button>
             )}
           </div>

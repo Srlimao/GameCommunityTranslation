@@ -1,13 +1,16 @@
 import React from 'react';
 import { CodeValidationSummary } from './code_validator.ts';
-import { CheckCircle2, AlertTriangle, Terminal, Code2, Layers, Zap, Tag } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Terminal, Code2, Layers, Zap, Tag, Sparkles, Loader2 } from 'lucide-react';
 
 interface AutoCheckSummaryCardProps {
   summary: CodeValidationSummary | null;
   isRunning: boolean;
+  isAiFixing?: boolean;
   onRunCodeValidator: () => void;
+  onBatchAiFix?: () => void;
   onApplyAllFixes?: () => void;
   hasFixableIssues: boolean;
+  totalIssuesCount?: number;
   whitelistTagsCount?: number;
   onOpenWhitelistModal?: () => void;
 }
@@ -15,9 +18,12 @@ interface AutoCheckSummaryCardProps {
 export const AutoCheckSummaryCard: React.FC<AutoCheckSummaryCardProps> = ({
   summary,
   isRunning,
+  isAiFixing = false,
   onRunCodeValidator,
+  onBatchAiFix,
   onApplyAllFixes,
   hasFixableIssues,
+  totalIssuesCount = 0,
   whitelistTagsCount = 0,
   onOpenWhitelistModal,
 }) => {
@@ -46,30 +52,43 @@ export const AutoCheckSummaryCard: React.FC<AutoCheckSummaryCardProps> = ({
           {onOpenWhitelistModal && (
             <button
               onClick={onOpenWhitelistModal}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold bg-[#161B22] hover:bg-[#21262D] text-[#F778BA] border border-[#F778BA]/40 transition-colors"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold bg-[#161B22] hover:bg-[#21262D] text-[#F778BA] border border-[#F778BA]/40 transition-colors cursor-pointer"
               title="Manage Game Tag Whitelist"
             >
               <Tag className="w-3.5 h-3.5" />
-              <span>TAG WHITELIST ({whitelistTagsCount})</span>
+              <span>TAGS ({whitelistTagsCount})</span>
             </button>
           )}
 
           <button
             onClick={onRunCodeValidator}
-            disabled={isRunning}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-[#1F6FEB] hover:bg-[#388BFD] text-white border border-[#1F6FEB] transition-colors disabled:opacity-50"
+            disabled={isRunning || isAiFixing}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-[#1F6FEB] hover:bg-[#388BFD] text-white border border-[#1F6FEB] transition-colors cursor-pointer disabled:opacity-50"
           >
             <Zap className="w-3.5 h-3.5" />
-            <span>{isRunning ? 'CHECKING...' : 'RUN CODE VALIDATOR'}</span>
+            <span>{isRunning ? 'CHECKING...' : 'RUN VALIDATOR'}</span>
           </button>
+
+          {totalIssuesCount > 0 && onBatchAiFix && (
+            <button
+              onClick={onBatchAiFix}
+              disabled={isAiFixing || isRunning}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-[#A371F7] hover:bg-[#8957E5] text-white border border-[#A371F7] transition-colors cursor-pointer disabled:opacity-50 shadow-sm"
+              title="Send detected errors, source, and translation to Gemini AI to generate high-precision fixes"
+            >
+              {isAiFixing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+              <span>{isAiFixing ? 'AI FIXING...' : 'BATCH AI FIX'}</span>
+            </button>
+          )}
 
           {hasFixableIssues && onApplyAllFixes && (
             <button
               onClick={onApplyAllFixes}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-[#238636] hover:bg-[#2EA043] text-white border border-[#3FB950] transition-colors"
+              disabled={isAiFixing || isRunning}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-[#238636] hover:bg-[#2EA043] text-white border border-[#3FB950] transition-colors cursor-pointer disabled:opacity-50"
             >
               <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>APPLY ALL FIXES</span>
+              <span>APPLY ALL</span>
             </button>
           )}
         </div>

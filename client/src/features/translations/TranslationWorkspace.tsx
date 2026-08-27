@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { GameSummary, KeyTranslationItem, TranslationStatus, BatchProgressData } from '../../types/client_types.ts';
 import { ApiClient } from '../../services/api_client.ts';
 import { SseTranslationStream } from '../../services/sse_translation_stream.ts';
@@ -10,7 +10,9 @@ import { AiInheritancePanel } from './AiInheritancePanel.tsx';
 import { LanguageSelectorModal } from './LanguageSelectorModal.tsx';
 import { BatchTranslateModal } from './BatchTranslateModal.tsx';
 import { JsonImportModal } from '../games/JsonImportModal.tsx';
-import { Globe2, Plus, Trash2, RefreshCw } from 'lucide-react';
+import { PartialTranslationImportModal } from './PartialTranslationImportModal.tsx';
+import { EmptyLanguageState } from './EmptyLanguageState.tsx';
+import { Trash2, RefreshCw } from 'lucide-react';
 
 interface TranslationWorkspaceProps {
   game: GameSummary;
@@ -23,17 +25,17 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
   onRefreshGame,
   onNavigateToGeminiQA,
 }) => {
-  const [selectedLangCode, setSelectedLangCode] = useState<string>(
-    game.languages?.[0]?.language_code || ''
-  );
+  const [selectedLangCode, setSelectedLangCode] = useState<string>(game.languages?.[0]?.language_code || '');
   const [items, setItems] = useState<KeyTranslationItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [backgroundSync, setBackgroundSync] = useState<{ loaded: number; total: number } | null>(null);
   const [isAddLangOpen, setIsAddLangOpen] = useState(false);
   const [isBatchOpen, setIsBatchOpen] = useState(false);
   const [isImportJsonOpen, setIsImportJsonOpen] = useState(false);
+  const [isImportPartialOpen, setIsImportPartialOpen] = useState(false);
   const [activeBatch, setActiveBatch] = useState<BatchProgressData | null>(null);
   const [glossaryCount, setGlossaryCount] = useState<number>(game.glossaryCount || 0);
-  const contextData = React.useMemo(() => ContextSerializer.parse(game.context_prompt), [game.context_prompt]);
+  const contextData = useMemo(() => ContextSerializer.parse(game.context_prompt), [game.context_prompt]);
 
   useEffect(() => {
     if (!selectedLangCode && game.languages?.length > 0) {
@@ -53,7 +55,9 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
     if (!selectedLangCode) return;
     setIsLoading(true);
     try {
-      const data = await ApiClient.getTranslations(game.id, selectedLangCode);
+      const data = await ApiClient.getTranslations(game.id, selectedLangCode, undefined, (sync) => {
+        setBackgroundSync(sync);
+      });
       setItems(data);
     } catch (err) {
       console.error('Failed to load translations:', err);
@@ -89,11 +93,7 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
   const handleStopActiveBatch = async () => {
     const targetJobId = activeBatch?.jobId || SseTranslationStream.getActiveJob()?.jobId;
     if (targetJobId) {
-      try {
-        await ApiClient.cancelBatch(targetJobId);
-      } catch (err: any) {
-        console.error('Failed to cancel batch:', err);
-      }
+      try { await ApiClient.cancelBatch(targetJobId); } catch (err) { console.error(err); }
       setActiveBatch(null);
       await loadTranslations();
       await onRefreshGame();
@@ -144,11 +144,9 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
   const handleExportJson = async () => {
     if (!selectedLangCode) return;
     try {
-      const exportMap = await ApiClient.getTranslations(game.id, selectedLangCode).then(items => {
+      const exportMap = await ApiClient.getTranslations(game.id, selectedLangCode).then((list) => {
         const map: Record<string, string> = {};
-        for (const item of items) {
-          map[item.key_path] = item.translated_text || item.source_text;
-        }
+        for (const item of list) map[item.key_path] = item.translated_text || item.source_text;
         return map;
       });
       const rawTemplate = game.raw_json_template || '';
@@ -161,23 +159,24 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
     }
   };
 
-  const liveProgress = React.useMemo(() => {
+  // Compute live progress from currentLang without expensive full array iterations on 100k+ keys
+  const liveProgress = useMemo(() => {
     if (!currentLang) return undefined;
-    if (items.length === 0) return currentLang;
-    const translated = items.filter(
-      (i) => i.status !== 'untranslated' && !!i.translated_text?.trim()
-    ).length;
-    const approved = items.filter((i) => i.status === 'approved').length;
-    const total = items.length;
-    const percentage = total > 0 ? Math.round((translated / total) * 100) : 0;
     return {
       ...currentLang,
-      total_keys: total,
-      translated_keys: translated,
-      approved_keys: approved,
-      progress_percentage: percentage,
+      total_keys: currentLang.total_keys || game.totalKeys || items.length,
+      translated_keys: currentLang.translated_keys || 0,
+      approved_keys: currentLang.approved_keys || 0,
+      progress_percentage: currentLang.progress_percentage || 0,
     };
-  }, [currentLang, items]);
+  }, [currentLang, game.totalKeys, items.length]);
+
+  const untranslatedCount = useMemo(() => {
+    if (!currentLang) return 0;
+    const total = currentLang.total_keys || game.totalKeys || 0;
+    const translated = currentLang.translated_keys || 0;
+    return Math.max(0, total - translated);
+  }, [currentLang, game.totalKeys]);
 
   return (
     <div className="space-y-3 font-mono">
@@ -187,6 +186,7 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
         onSelectLangCode={setSelectedLangCode}
         onOpenAddLang={() => setIsAddLangOpen(true)}
         onOpenImportJson={() => setIsImportJsonOpen(true)}
+        onOpenImportPartialJson={() => setIsImportPartialOpen(true)}
         onExportJson={handleExportJson}
         onNavigateToGeminiQA={onNavigateToGeminiQA}
         onOpenBatch={() => setIsBatchOpen(true)}
@@ -194,31 +194,34 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
         onStopBatch={handleStopActiveBatch}
       />
 
-      {/* AI Inheritance Panel (Option 2) */}
-      <AiInheritancePanel
-        contextData={contextData}
-        glossaryCount={glossaryCount}
-      />
+      <AiInheritancePanel contextData={contextData} glossaryCount={glossaryCount} />
 
-      {/* Language Content */}
       {selectedLangCode && currentLang ? (
         <div className="space-y-3">
-          <TranslationProgressBar
-            progress={liveProgress}
-            totalKeys={game.totalKeys || items.length}
-          />
+          {liveProgress && <TranslationProgressBar progress={liveProgress} />}
 
-          <div className="flex items-center justify-between text-xs text-[#8B949E]">
-            <button
-              onClick={loadTranslations}
-              className="flex items-center gap-1 hover:text-[#E6EDF3] transition-colors"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-              <span>SYNC KEYS</span>
-            </button>
+          <div className="flex items-center justify-between text-xs text-[#8B949E] px-1">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={loadTranslations}
+                disabled={isLoading}
+                className="flex items-center gap-1 hover:text-[#E6EDF3] transition-colors"
+                title="Reload from storage"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-[#5865F2]' : ''}`} />
+                <span>SYNC KEYS</span>
+              </button>
+              {backgroundSync && backgroundSync.loaded < backgroundSync.total && (
+                <span className="text-[10px] text-[#5865F2] flex items-center gap-1">
+                  <RefreshCw className="w-3 h-3 animate-spin" />
+                  Caching: {backgroundSync.loaded}/{backgroundSync.total} chunks
+                </span>
+              )}
+            </div>
+
             <button
               onClick={() => handleDeleteLanguage(currentLang.language_id, currentLang.language_name)}
-              className="text-[#8B949E] hover:text-[#E5534B] flex items-center gap-1 transition-colors"
+              className="flex items-center gap-1 text-[#8B949E] hover:text-[#F85149] transition-colors"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>DELETE {currentLang.language_name.toUpperCase()}</span>
@@ -226,36 +229,26 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
           </div>
 
           <TranslationTable
-            items={items}
             gameId={game.id}
+            languageCode={selectedLangCode}
+            totalKeys={currentLang.total_keys || game.totalKeys}
             onSaveTranslation={handleSaveTranslation}
             onTranslateSingle={handleTranslateSingle}
           />
         </div>
       ) : (
-        <div className="bg-[#161B22] border border-[#30363D] p-12 text-center">
-          <Globe2 className="w-10 h-10 text-[#8B949E] mx-auto mb-3" />
-          <h3 className="text-sm font-bold text-[#E6EDF3] mb-1">NO TARGET LOCALE SELECTED</h3>
-          <p className="text-xs text-[#8B949E] mb-4">
-            Add a target language (Spanish, Japanese, German, French) to begin.
-          </p>
-          <button
-            onClick={() => setIsAddLangOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold bg-[#5865F2] hover:bg-[#4C6EF5] text-white border border-[#5865F2] transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            <span>ADD TARGET LOCALE</span>
-          </button>
-        </div>
+        <EmptyLanguageState onOpenAddLang={() => setIsAddLangOpen(true)} />
       )}
 
-      {/* Modals */}
       <LanguageSelectorModal
         isOpen={isAddLangOpen}
-        gameId={game.id}
+        existingLanguages={game.languages || []}
         onClose={() => setIsAddLangOpen(false)}
-        onLanguageAdded={async () => {
+        onAddLanguage={async (code, name) => {
+          await ApiClient.addLanguage(game.id, code, name);
           await onRefreshGame();
+          setSelectedLangCode(code);
+          setIsAddLangOpen(false);
         }}
       />
 
@@ -263,16 +256,12 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
         <BatchTranslateModal
           isOpen={isBatchOpen}
           gameId={game.id}
-          gameName={game.name}
-          languageCode={currentLang.language_code}
+          languageCode={selectedLangCode}
           languageName={currentLang.language_name}
+          contextPrompt={game.context_prompt}
           untranslatedCount={untranslatedCount}
-          totalCount={items.length}
           onClose={() => setIsBatchOpen(false)}
-          onBatchFinished={async () => {
-            await loadTranslations();
-            await onRefreshGame();
-          }}
+          onStartBatch={loadTranslations}
         />
       )}
 
@@ -281,11 +270,20 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
         gameId={game.id}
         gameName={game.name}
         onClose={() => setIsImportJsonOpen(false)}
-        onImportSuccess={async () => {
-          await onRefreshGame();
-          await loadTranslations();
-        }}
+        onImportSuccess={() => { onRefreshGame(); loadTranslations(); }}
       />
+
+      {currentLang && (
+        <PartialTranslationImportModal
+          isOpen={isImportPartialOpen}
+          game={game}
+          languageCode={selectedLangCode}
+          languageName={currentLang.language_name}
+          existingItems={items}
+          onClose={() => setIsImportPartialOpen(false)}
+          onImportSuccess={() => { onRefreshGame(); loadTranslations(); }}
+        />
+      )}
     </div>
   );
 };

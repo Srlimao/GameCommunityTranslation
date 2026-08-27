@@ -9,6 +9,7 @@ export default defineConfig({
   ],
   base: './',
   root: 'client',
+  envDir: '../',
   server: {
     port: 5173,
     proxy: {

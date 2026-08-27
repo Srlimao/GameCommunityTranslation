@@ -2,10 +2,11 @@ import { v4 as uuidv4 } from 'uuid';
 import { GameSummary, JsonSchemaConfig } from '../types/client_types.ts';
 import { RemoteJsonDb } from './remote_json_db.ts';
 import { LocalCacheStore } from './local_cache_store.ts';
+import { runWithConcurrency } from './concurrency_limiter.ts';
 
 const COLLECTION_GAMES = 'lt_games';
 const COLLECTION_TEMPLATES = 'lt_templates';
-const CHUNK_SIZE = 3 * 1024 * 1024; // 3MB chunk for raw templates
+const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB chunk for raw templates
 
 export class CloudGamesStore {
   private static readonly TAG_REGEX = /<[^<>]+>|\[\/?[a-zA-Z0-9_#:=."'\-\s\\\/]+\]/g;
@@ -111,10 +112,11 @@ export class CloudGamesStore {
 
   static async saveTemplate(gameId: string, templateStr: string): Promise<void> {
     const chunksCount = Math.ceil(templateStr.length / CHUNK_SIZE);
-    for (let i = 0; i < chunksCount; i++) {
+    const indices = Array.from({ length: chunksCount }, (_, i) => i);
+    await runWithConcurrency(indices, 3, async (i) => {
       const part = templateStr.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
       await RemoteJsonDb.upsertDoc(COLLECTION_TEMPLATES, `${gameId}_tpl_${i}`, { part, index: i, chunksCount });
-    }
+    });
     await RemoteJsonDb.upsertDoc(COLLECTION_TEMPLATES, `${gameId}_tpl_meta`, { chunksCount });
   }
 
@@ -122,11 +124,11 @@ export class CloudGamesStore {
     const meta = await RemoteJsonDb.getDoc<{ chunksCount: number }>(COLLECTION_TEMPLATES, `${gameId}_tpl_meta`);
     if (!meta || !meta.chunksCount) return '';
 
-    const parts: string[] = [];
-    for (let i = 0; i < meta.chunksCount; i++) {
+    const indices = Array.from({ length: meta.chunksCount }, (_, i) => i);
+    const parts = await runWithConcurrency(indices, 3, async (i) => {
       const doc = await RemoteJsonDb.getDoc<{ part: string }>(COLLECTION_TEMPLATES, `${gameId}_tpl_${i}`);
-      if (doc?.part) parts.push(doc.part);
-    }
+      return doc?.part || '';
+    });
     return parts.join('');
   }
 }

@@ -1,6 +1,6 @@
 import React from 'react';
 import { GameSummary, LanguageProgress, BatchProgressData } from '../../types/client_types.ts';
-import { Globe2, Plus, Upload, Download, Sparkles, Loader2, StopCircle } from 'lucide-react';
+import { Globe2, Plus, Upload, Download, Sparkles, Loader2, StopCircle, FileUp } from 'lucide-react';
 
 interface TranslationTopBarProps {
   game: GameSummary;
@@ -8,6 +8,7 @@ interface TranslationTopBarProps {
   onSelectLangCode: (code: string) => void;
   onOpenAddLang: () => void;
   onOpenImportJson: () => void;
+  onOpenImportPartialJson?: () => void;
   onExportJson: () => void;
   onNavigateToGeminiQA: (code: string) => void;
   onOpenBatch: () => void;
@@ -21,6 +22,7 @@ export const TranslationTopBar: React.FC<TranslationTopBarProps> = ({
   onSelectLangCode,
   onOpenAddLang,
   onOpenImportJson,
+  onOpenImportPartialJson,
   onExportJson,
   onNavigateToGeminiQA,
   onOpenBatch,
@@ -79,6 +81,15 @@ export const TranslationTopBar: React.FC<TranslationTopBarProps> = ({
 
           {selectedLangCode && (
             <>
+              <button
+                onClick={onOpenImportPartialJson}
+                className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold bg-[#0D1117] hover:bg-[#30363D] text-[#E6EDF3] border border-[#30363D] transition-colors cursor-pointer"
+                title={`Import translated or partial JSON for ${selectedLangCode}`}
+              >
+                <FileUp className="w-3.5 h-3.5 text-[#5865F2]" />
+                <span>Import Partial JSON</span>
+              </button>
+
               <button
                 onClick={onExportJson}
                 className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold bg-[#0D1117] hover:bg-[#30363D] text-[#E6EDF3] border border-[#30363D] transition-colors cursor-pointer"

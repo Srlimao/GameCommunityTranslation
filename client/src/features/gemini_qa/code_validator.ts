@@ -16,7 +16,6 @@ export interface CodeValidationResult {
 }
 
 export class CodeValidator {
-  // Matches any XML/HTML/Unreal engine tag like <b>, </>, </color>, <style=...>, and BBCode [b], [/b]
   private static readonly TAG_REGEX = /<[^<>]+>|\[\/?[a-zA-Z0-9_#:=."'\-\s\\\/]+\]/g;
   private static readonly PLACEHOLDER_REGEX = /(\{[^{}]+\}|%[0-9]*\$?[a-zA-Z]|\$[0-9]+)/g;
 
@@ -58,26 +57,17 @@ export class CodeValidator {
     const issues: TranslationIssue[] = [];
     const src = item.source_text || '';
     const trg = item.translated_text || '';
-
     this.checkTagParity(item, src, trg, issues, whitelistTags);
     this.checkPlaceholderParity(item, src, trg, issues);
     this.checkBracketBalance(item, src, trg, issues);
     this.checkTabParity(item, src, trg, issues);
     this.checkFormattingParity(item, src, trg, issues);
-
     return issues;
   }
 
-  private static checkTagParity(
-    item: KeyTranslationItem,
-    src: string,
-    trg: string,
-    issues: TranslationIssue[],
-    whitelistTags?: string[]
-  ): void {
+  private static checkTagParity(item: KeyTranslationItem, src: string, trg: string, issues: TranslationIssue[], whitelistTags?: string[]): void {
     const srcTags = src.match(this.TAG_REGEX) || [];
     const trgTags = trg.match(this.TAG_REGEX) || [];
-
     const srcFreq = this.getFrequencyMap(srcTags);
     const trgFreq = this.getFrequencyMap(trgTags);
 
@@ -85,194 +75,82 @@ export class CodeValidator {
       const validSet = new Set<string>([...whitelistTags, ...srcTags, '</>']);
       const invalidTags: string[] = [];
       for (const [tag, count] of Object.entries(trgFreq)) {
-        if (!validSet.has(tag)) {
-          invalidTags.push(`${tag}${count > 1 ? ` (${count})` : ''}`);
-        }
+        if (!validSet.has(tag)) invalidTags.push(`${tag}${count > 1 ? ` (${count})` : ''}`);
       }
-
-      // Check if source tags are missing
       const missingTags: string[] = [];
       for (const [tag, count] of Object.entries(srcFreq)) {
-        const trgCount = trgFreq[tag] || 0;
-        if (trgCount === 0 && trgTags.length === 0) {
-          missingTags.push(`${tag}${count > 1 ? ` (${count})` : ''}`);
-        }
+        if (!trgFreq[tag] && trgTags.length === 0) missingTags.push(`${tag}${count > 1 ? ` (${count})` : ''}`);
       }
-
       if (invalidTags.length > 0 || missingTags.length > 0) {
-        const details = [
-          invalidTags.length > 0 ? `Corrupted/Not in whitelist: ${invalidTags.join(', ')}` : '',
-          missingTags.length > 0 ? `Missing tag(s): ${missingTags.join(', ')}` : '',
-        ].filter(Boolean).join('. ');
-
-        issues.push({
-          key_id: item.key_id,
-          language_id: item.language_id,
-          key_path: item.key_path,
-          source_text: src,
-          translated_text: trg,
-          issue_type: 'tag_mismatch',
-          message: `Tag whitelist validation: ${details}.`,
-          suggestion: this.fixTagsAndTokens(src, trg),
-        });
+        const details = [invalidTags.length > 0 ? `Corrupted/Not in whitelist: ${invalidTags.join(', ')}` : '', missingTags.length > 0 ? `Missing tag(s): ${missingTags.join(', ')}` : ''].filter(Boolean).join('. ');
+        issues.push({ key_id: item.key_id, language_id: item.language_id, key_path: item.key_path, source_text: src, translated_text: trg, issue_type: 'tag_mismatch', message: `Tag whitelist validation: ${details}.`, suggestion: this.fixTagsAndTokens(src, trg) });
       }
     } else {
-      // Fallback symmetric comparison if no whitelist configured
       const missingTags: string[] = [];
       for (const [tag, count] of Object.entries(srcFreq)) {
         const trgCount = trgFreq[tag] || 0;
         if (trgCount < count) missingTags.push(`${tag}${count - trgCount > 1 ? ` (missing ${count - trgCount})` : ''}`);
       }
-
       const extraTags: string[] = [];
       for (const [tag, count] of Object.entries(trgFreq)) {
         const srcCount = srcFreq[tag] || 0;
         if (srcCount < count) extraTags.push(`${tag}${count - srcCount > 1 ? ` (extra ${count - srcCount})` : ''}`);
       }
-
       if (missingTags.length > 0 || extraTags.length > 0) {
-        const details = [
-          missingTags.length > 0 ? `Missing in translation: ${missingTags.join(', ')}` : '',
-          extraTags.length > 0 ? `Unexpected/Not in original: ${extraTags.join(', ')}` : '',
-        ].filter(Boolean).join('. ');
-
-        issues.push({
-          key_id: item.key_id,
-          language_id: item.language_id,
-          key_path: item.key_path,
-          source_text: src,
-          translated_text: trg,
-          issue_type: 'tag_mismatch',
-          message: `Tag parity mismatch: ${details}.`,
-          suggestion: this.fixTagsAndTokens(src, trg),
-        });
+        const details = [missingTags.length > 0 ? `Missing in translation: ${missingTags.join(', ')}` : '', extraTags.length > 0 ? `Unexpected/Not in original: ${extraTags.join(', ')}` : ''].filter(Boolean).join('. ');
+        issues.push({ key_id: item.key_id, language_id: item.language_id, key_path: item.key_path, source_text: src, translated_text: trg, issue_type: 'tag_mismatch', message: `Tag parity mismatch: ${details}.`, suggestion: this.fixTagsAndTokens(src, trg) });
       }
     }
   }
 
-  private static checkPlaceholderParity(
-    item: KeyTranslationItem,
-    src: string,
-    trg: string,
-    issues: TranslationIssue[]
-  ): void {
+  private static checkPlaceholderParity(item: KeyTranslationItem, src: string, trg: string, issues: TranslationIssue[]): void {
     const srcFreq = this.getFrequencyMap(src.match(this.PLACEHOLDER_REGEX) || []);
     const trgFreq = this.getFrequencyMap(trg.match(this.PLACEHOLDER_REGEX) || []);
-
     const missing: string[] = [];
     for (const [token, count] of Object.entries(srcFreq)) {
       const trgCount = trgFreq[token] || 0;
       if (trgCount < count) missing.push(`${token}${count - trgCount > 1 ? ` (${count - trgCount})` : ''}`);
     }
-
     const extra: string[] = [];
     for (const [token, count] of Object.entries(trgFreq)) {
       const srcCount = srcFreq[token] || 0;
       if (srcCount < count) extra.push(`${token}${count - srcCount > 1 ? ` (${count - srcCount})` : ''}`);
     }
-
     if (missing.length > 0 || extra.length > 0) {
-      const details = [
-        missing.length > 0 ? `Missing: ${missing.join(', ')}` : '',
-        extra.length > 0 ? `Unexpected: ${extra.join(', ')}` : '',
-      ].filter(Boolean).join('. ');
-
-      issues.push({
-        key_id: item.key_id,
-        language_id: item.language_id,
-        key_path: item.key_path,
-        source_text: src,
-        translated_text: trg,
-        issue_type: 'placeholder_mismatch',
-        message: `Variable placeholder mismatch: ${details}.`,
-        suggestion: this.fixTagsAndTokens(src, trg),
-      });
+      const details = [missing.length > 0 ? `Missing: ${missing.join(', ')}` : '', extra.length > 0 ? `Unexpected: ${extra.join(', ')}` : ''].filter(Boolean).join('. ');
+      issues.push({ key_id: item.key_id, language_id: item.language_id, key_path: item.key_path, source_text: src, translated_text: trg, issue_type: 'placeholder_mismatch', message: `Variable placeholder mismatch: ${details}.`, suggestion: this.fixTagsAndTokens(src, trg) });
     }
   }
 
-  private static checkBracketBalance(
-    item: KeyTranslationItem,
-    src: string,
-    trg: string,
-    issues: TranslationIssue[]
-  ): void {
-    const bracketPairs = [
-      { open: '{', close: '}', name: 'Curly braces {}' },
-      { open: '[', close: ']', name: 'Square brackets []' },
-    ];
+  private static checkBracketBalance(item: KeyTranslationItem, src: string, trg: string, issues: TranslationIssue[]): void {
+    const bracketPairs = [{ open: '{', close: '}', name: 'Curly braces {}' }, { open: '[', close: ']', name: 'Square brackets []' }];
     for (const b of bracketPairs) {
       const srcOpen = (src.match(new RegExp(`\\${b.open}`, 'g')) || []).length;
       const srcClose = (src.match(new RegExp(`\\${b.close}`, 'g')) || []).length;
       const trgOpen = (trg.match(new RegExp(`\\${b.open}`, 'g')) || []).length;
       const trgClose = (trg.match(new RegExp(`\\${b.close}`, 'g')) || []).length;
       if (srcOpen !== trgOpen || srcClose !== trgClose) {
-        issues.push({
-          key_id: item.key_id,
-          language_id: item.language_id,
-          key_path: item.key_path,
-          source_text: src,
-          translated_text: trg,
-          issue_type: 'symbol_mismatch',
-          message: `${b.name} mismatch: Source (${srcOpen} '${b.open}', ${srcClose} '${b.close}') vs Translation (${trgOpen} '${b.open}', ${trgClose} '${b.close}').`,
-          suggestion: this.fixTagsAndTokens(src, trg),
-        });
+        issues.push({ key_id: item.key_id, language_id: item.language_id, key_path: item.key_path, source_text: src, translated_text: trg, issue_type: 'symbol_mismatch', message: `${b.name} mismatch: Source (${srcOpen} '${b.open}', ${srcClose} '${b.close}') vs Translation (${trgOpen} '${b.open}', ${trgClose} '${b.close}').`, suggestion: this.fixTagsAndTokens(src, trg) });
       }
     }
   }
 
-  private static checkTabParity(
-    item: KeyTranslationItem,
-    src: string,
-    trg: string,
-    issues: TranslationIssue[]
-  ): void {
+  private static checkTabParity(item: KeyTranslationItem, src: string, trg: string, issues: TranslationIssue[]): void {
     const srcTabs = (src.match(/\t/g) || []).length;
     const trgTabs = (trg.match(/\t/g) || []).length;
     if (srcTabs !== trgTabs) {
-      issues.push({
-        key_id: item.key_id,
-        language_id: item.language_id,
-        key_path: item.key_path,
-        source_text: src,
-        translated_text: trg,
-        issue_type: 'tab_mismatch',
-        message: `Tab character mismatch: Source has ${srcTabs} tab(s) [\\t], translation has ${trgTabs}.`,
-        suggestion: this.fixTabs(src, trg, srcTabs),
-      });
+      issues.push({ key_id: item.key_id, language_id: item.language_id, key_path: item.key_path, source_text: src, translated_text: trg, issue_type: 'tab_mismatch', message: `Tab character mismatch: Source has ${srcTabs} tab(s) [\\t], translation has ${trgTabs}.`, suggestion: this.fixTabs(src, trg, srcTabs) });
     }
   }
 
-  private static checkFormattingParity(
-    item: KeyTranslationItem,
-    src: string,
-    trg: string,
-    issues: TranslationIssue[]
-  ): void {
+  private static checkFormattingParity(item: KeyTranslationItem, src: string, trg: string, issues: TranslationIssue[]): void {
     const srcNewlines = (src.match(/\n/g) || []).length;
     const trgNewlines = (trg.match(/\n/g) || []).length;
     if (srcNewlines !== trgNewlines && srcNewlines > 0) {
-      issues.push({
-        key_id: item.key_id,
-        language_id: item.language_id,
-        key_path: item.key_path,
-        source_text: src,
-        translated_text: trg,
-        issue_type: 'formatting_loss',
-        message: `Newline count mismatch: Source has ${srcNewlines} newline(s) [\\n], translation has ${trgNewlines}.`,
-        suggestion: this.fixNewlines(src, trg),
-      });
+      issues.push({ key_id: item.key_id, language_id: item.language_id, key_path: item.key_path, source_text: src, translated_text: trg, issue_type: 'formatting_loss', message: `Newline count mismatch: Source has ${srcNewlines} newline(s) [\\n], translation has ${trgNewlines}.`, suggestion: this.fixNewlines(src, trg) });
     }
     if (src.endsWith(':') && !trg.endsWith(':') && !trg.endsWith('：')) {
-      issues.push({
-        key_id: item.key_id,
-        language_id: item.language_id,
-        key_path: item.key_path,
-        source_text: src,
-        translated_text: trg,
-        issue_type: 'formatting_loss',
-        message: 'Trailing colon ":" missing in translation.',
-        suggestion: trg + ':',
-      });
+      issues.push({ key_id: item.key_id, language_id: item.language_id, key_path: item.key_path, source_text: src, translated_text: trg, issue_type: 'formatting_loss', message: 'Trailing colon ":" missing in translation.', suggestion: trg + ':' });
     }
   }
 
@@ -319,11 +197,8 @@ export class CodeValidator {
       if (!fixed.includes(token)) {
         const cleanName = token.replace(/[{}]/g, '').trim();
         const looseRegex = new RegExp(`\\{\\s*${cleanName}\\s*\\}`, 'g');
-        if (looseRegex.test(fixed)) {
-          fixed = fixed.replace(looseRegex, token);
-        } else if (src.endsWith(token)) {
-          fixed = fixed.trimEnd() + ' ' + token;
-        }
+        if (looseRegex.test(fixed)) fixed = fixed.replace(looseRegex, token);
+        else if (src.endsWith(token)) fixed = fixed.trimEnd() + ' ' + token;
       }
     }
     return fixed;

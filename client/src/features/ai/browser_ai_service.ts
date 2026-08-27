@@ -135,4 +135,65 @@ export class BrowserAIService {
       timeoutMs: settings.request_timeout_ms || 60000,
     });
   }
+
+  static async fixSingleIssue(
+    params: {
+      gameName: string;
+      contextPrompt?: string;
+      targetLanguage: string;
+      whitelistTags?: string[];
+      issue: { key_path: string; source_text: string; translated_text: string; issue_type: string; message: string };
+    },
+    settings: SystemSettings
+  ): Promise<{ fixed_translation: string; explanation?: string }> {
+    const whitelistInfo = params.whitelistTags?.length ? `Allowed Markup Tags Whitelist: ${params.whitelistTags.join(', ')}` : '';
+    const system = `You are a Lead Game Localization Engineer specializing in code, tag, tab, bracket, placeholder, and symbol parity repair.
+Your task is to fix translated game text with code/symbol errors.
+
+CRITICAL RULES:
+1. Maintain the natural target language localization and tone.
+2. Fix all syntax, markup tags (<tag>...</tag>, </>), variables ({player_name}), placeholders (%s), brackets [], tabs (\\t), and newlines (\\n) so they match the source text structure.
+3. Allowed tags: ${params.whitelistTags?.join(', ') || 'Preserve source tags exactly'}.
+4. Return a JSON object with: {"fixed_translation": string, "explanation": string}.`;
+
+    const prompt = `Game: ${params.gameName}\n${params.contextPrompt ? `Lore/Context:\n${params.contextPrompt}\n` : ''}Target Language: ${params.targetLanguage}\n${whitelistInfo}\n\nItem with issue to repair:\nKey: ${params.issue.key_path}\nSource Text: "${params.issue.source_text}"\nCurrent Translation: "${params.issue.translated_text}"\nIssue Detected: ${params.issue.issue_type} - ${params.issue.message}`;
+
+    const res = await this.generateStructuredJson<{ fixed_translation?: string; explanation?: string }>(prompt, system, settings);
+    return {
+      fixed_translation: res.fixed_translation || params.issue.translated_text,
+      explanation: res.explanation,
+    };
+  }
+
+  static async fixTranslationIssues(
+    params: {
+      gameName: string;
+      contextPrompt?: string;
+      targetLanguage: string;
+      whitelistTags?: string[];
+      issues: Array<{ key_path: string; source_text: string; translated_text: string; issue_type: string; message: string }>;
+    },
+    settings: SystemSettings
+  ): Promise<Array<{ key_path: string; fixed_translation: string; explanation?: string }>> {
+    if (params.issues.length === 0) return [];
+
+    const itemsText = params.issues.map((iss, idx) =>
+      `[Item ${idx + 1}]\nKey: ${iss.key_path}\nSource Text: "${iss.source_text}"\nCurrent Translation: "${iss.translated_text}"\nIssue Detected: ${iss.issue_type} - ${iss.message}`
+    ).join('\n\n');
+
+    const whitelistInfo = params.whitelistTags?.length ? `Allowed Markup Tags Whitelist: ${params.whitelistTags.join(', ')}` : '';
+    const system = `You are a Lead Game Localization Engineer specializing in code, tag, tab, bracket, and symbol parity repair.
+Your task is to fix translated game text with syntax/parity errors.
+
+CRITICAL RULES:
+1. Maintain the target language localization and tone naturally.
+2. Fix all syntax, markup tags, variables, bracket parity, tab characters (\\t), and placeholders (%s, {name}) to match the source text structure.
+3. Allowed tags: ${params.whitelistTags?.join(', ') || 'Preserve source tags exactly'}.
+4. Return a JSON object with key "fixes", where each element is {"key_path": string, "fixed_translation": string, "explanation": string}.`;
+
+    const prompt = `Game: ${params.gameName}\n${params.contextPrompt ? `Lore/Context:\n${params.contextPrompt}\n` : ''}Target Language: ${params.targetLanguage}\n${whitelistInfo}\n\nItems with syntax/parity issues to repair:\n${itemsText}`;
+
+    const res = await this.generateStructuredJson<{ fixes?: Array<{ key_path: string; fixed_translation: string; explanation?: string }> }>(prompt, system, settings);
+    return res.fixes || [];
+  }
 }

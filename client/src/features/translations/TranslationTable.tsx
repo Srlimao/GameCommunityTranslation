@@ -1,78 +1,88 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useDeferredValue } from 'react';
 import { KeyTranslationItem, TranslationStatus } from '../../types/client_types.ts';
+import { ApiClient } from '../../services/api_client.ts';
 import { TranslationRowItem } from './TranslationRowItem.tsx';
 import { KeyTreeExplorer } from './KeyTreeExplorer.tsx';
-import { Search, ChevronLeft, ChevronRight, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, PanelLeftClose, PanelLeftOpen, Loader2 } from 'lucide-react';
 
 interface TranslationTableProps {
-  items: KeyTranslationItem[];
   gameId: string;
+  languageCode: string;
+  totalKeys?: number;
   onSaveTranslation: (keyId: string, text: string, status?: TranslationStatus) => Promise<void>;
   onTranslateSingle: (item: KeyTranslationItem) => Promise<string>;
 }
 
-const ITEMS_PER_PAGE = 30;
+const PAGE_SIZE_OPTIONS = [30, 50, 100, 200];
 
 export const TranslationTable: React.FC<TranslationTableProps> = ({
-  items,
   gameId,
+  languageCode,
+  totalKeys,
   onSaveTranslation,
   onTranslateSingle,
 }) => {
+  const [pageItems, setPageItems] = useState<KeyTranslationItem[]>([]);
+  const [totalCount, setTotalCount] = useState(totalKeys || 0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+
   const [searchTerm, setSearchTerm] = useState('');
+  const deferredSearch = useDeferredValue(searchTerm);
   const [statusFilter, setStatusFilter] = useState<'all' | TranslationStatus>('all');
   const [selectedTreePrefix, setSelectedTreePrefix] = useState<string | null>(null);
   const [showTreeExplorer, setShowTreeExplorer] = useState(true);
+  const [pageSize, setPageSize] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Filter items by search, status, and tree explorer prefix
-  const filteredItems = useMemo(() => {
-    return items.filter((item) => {
-      // Tree prefix filter (supports ., /, \ and : delimiters across grouped tables)
-      if (selectedTreePrefix) {
-        let cleanKey = item.key_path;
-        if (cleanKey.startsWith('$$$') && cleanKey.endsWith('$$')) {
-          cleanKey = cleanKey.slice(3, -2);
-        }
-        const normalizedKey = cleanKey.replace(/[/:\\]/g, '.').toLowerCase();
-        const normalizedPrefix = selectedTreePrefix.replace(/[/:\\]/g, '.').toLowerCase();
-        if (!normalizedKey.startsWith(normalizedPrefix)) {
-          return false;
-        }
-      }
+  const fetchPage = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await ApiClient.getPaginatedTranslations({
+        gameId,
+        langCode: languageCode,
+        page: currentPage,
+        pageSize,
+        status: statusFilter,
+        search: deferredSearch,
+        prefix: selectedTreePrefix,
+      });
+      setPageItems(res.items);
+      setTotalCount(res.totalCount);
+      setTotalPages(res.totalPages);
+    } catch (err) {
+      console.error('Failed to load translations page:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [gameId, languageCode, currentPage, pageSize, statusFilter, deferredSearch, selectedTreePrefix]);
 
-      // Search filter
-      const matchesSearch =
-        searchTerm === '' ||
-        item.key_path.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.source_text.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (item.translated_text && item.translated_text.toLowerCase().includes(searchTerm.toLowerCase()));
+  useEffect(() => {
+    fetchPage();
+  }, [fetchPage]);
 
-      // Status filter
-      let matchesStatus = false;
-      if (statusFilter === 'all') {
-        matchesStatus = true;
-      } else if (statusFilter === 'untranslated') {
-        matchesStatus = !item.translated_text || item.status === 'untranslated';
-      } else {
-        matchesStatus = item.status === statusFilter;
-      }
+  const handleSave = async (keyId: string, text: string, status?: TranslationStatus) => {
+    await onSaveTranslation(keyId, text, status);
+    setPageItems((prev) =>
+      prev.map((it) => (it.key_id === keyId ? { ...it, translated_text: text, status: status || it.status } : it))
+    );
+  };
 
-      return matchesSearch && matchesStatus;
-    });
-  }, [items, searchTerm, statusFilter, selectedTreePrefix]);
+  const handleSingle = async (item: KeyTranslationItem) => {
+    const res = await onTranslateSingle(item);
+    setPageItems((prev) =>
+      prev.map((it) => (it.key_id === item.key_id ? { ...it, translated_text: res, status: 'ai_translated' } : it))
+    );
+    return res;
+  };
 
-  const totalPages = Math.max(1, Math.ceil(filteredItems.length / ITEMS_PER_PAGE));
-  const validPage = Math.min(currentPage, totalPages);
-  const startIndex = (validPage - 1) * ITEMS_PER_PAGE;
-  const paginatedItems = filteredItems.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * pageSize;
 
   return (
     <div className="bg-[#161B22] border border-[#30363D] font-mono flex flex-col min-h-[600px]">
       {/* Top Controls Bar */}
       <div className="p-3.5 border-b border-[#30363D] bg-[#10141D] flex flex-col md:flex-row items-center justify-between gap-3 text-sm">
         <div className="flex items-center gap-2 w-full md:w-auto">
-          {/* Tree Explorer Toggle */}
           <button
             type="button"
             onClick={() => setShowTreeExplorer(!showTreeExplorer)}
@@ -84,10 +94,9 @@ export const TranslationTable: React.FC<TranslationTableProps> = ({
             title={showTreeExplorer ? 'Hide Tree Explorer' : 'Show Tree Explorer'}
           >
             {showTreeExplorer ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeftOpen className="w-4 h-4" />}
-            <span className="hidden sm:inline">{showTreeExplorer ? 'Tree' : 'Tree'}</span>
+            <span className="hidden sm:inline">Tree</span>
           </button>
 
-          {/* Search Input */}
           <div className="relative flex-1 md:w-80">
             <Search className="w-4 h-4 text-[#8B949E] absolute left-3 top-1/2 -translate-y-1/2" />
             <input
@@ -97,7 +106,7 @@ export const TranslationTable: React.FC<TranslationTableProps> = ({
                 setSearchTerm(e.target.value);
                 setCurrentPage(1);
               }}
-              placeholder="Filter keys, source, or target text..."
+              placeholder="Filter keys, source, or target..."
               className="w-full bg-[#0D1117] border border-[#30363D] pl-9 pr-3 py-1.5 text-sm text-[#E6EDF3] placeholder:text-[#8B949E] outline-none focus:border-[#5865F2]"
             />
           </div>
@@ -137,7 +146,7 @@ export const TranslationTable: React.FC<TranslationTableProps> = ({
         {showTreeExplorer && (
           <div className="w-64 sm:w-72 shrink-0 border-r border-[#30363D] overflow-y-auto">
             <KeyTreeExplorer
-              items={items}
+              items={pageItems}
               selectedPrefix={selectedTreePrefix}
               onSelectPrefix={(prefix) => {
                 setSelectedTreePrefix(prefix);
@@ -148,12 +157,18 @@ export const TranslationTable: React.FC<TranslationTableProps> = ({
         )}
 
         {/* Rows Container */}
-        <div className="flex-1 overflow-y-auto divide-y divide-[#30363D] bg-[#0D1117]/50">
-          {paginatedItems.length === 0 ? (
+        <div className="flex-1 overflow-y-auto divide-y divide-[#30363D] bg-[#0D1117]/50 relative">
+          {isLoading && (
+            <div className="absolute inset-0 bg-[#0D1117]/40 backdrop-blur-[1px] flex items-center justify-center z-10">
+              <Loader2 className="w-6 h-6 animate-spin text-[#5865F2]" />
+            </div>
+          )}
+
+          {pageItems.length === 0 && !isLoading ? (
             <div className="p-12 text-center text-[#8B949E]">
               <div className="text-sm font-bold mb-1.5 text-[#E6EDF3]">NO LOCALIZATION KEYS FOUND</div>
               <div className="text-xs text-[#8B949E]">
-                {items.length === 0
+                {totalCount === 0
                   ? 'Import a base reference JSON file to load game keys.'
                   : selectedTreePrefix
                   ? `No keys found matching prefix "${selectedTreePrefix}". Try clearing tree filter.`
@@ -161,13 +176,13 @@ export const TranslationTable: React.FC<TranslationTableProps> = ({
               </div>
             </div>
           ) : (
-            paginatedItems.map((item) => (
+            pageItems.map((item) => (
               <TranslationRowItem
                 key={item.key_id}
                 item={item}
                 gameId={gameId}
-                onSaveTranslation={onSaveTranslation}
-                onTranslateSingle={onTranslateSingle}
+                onSaveTranslation={handleSave}
+                onTranslateSingle={handleSingle}
               />
             ))
           )}
@@ -175,30 +190,45 @@ export const TranslationTable: React.FC<TranslationTableProps> = ({
       </div>
 
       {/* Pagination Footer */}
-      {filteredItems.length > ITEMS_PER_PAGE && (
-        <div className="p-3 bg-[#10141D] border-t border-[#30363D] flex items-center justify-between text-xs text-[#8B949E]">
-          <div>
-            Showing <strong className="text-[#E6EDF3]">{startIndex + 1}</strong> to{' '}
-            <strong className="text-[#E6EDF3]">
-              {Math.min(startIndex + ITEMS_PER_PAGE, filteredItems.length)}
-            </strong>{' '}
-            of <strong className="text-[#E6EDF3]">{filteredItems.length}</strong> keys
+      {totalCount > 0 && (
+        <div className="p-3 bg-[#10141D] border-t border-[#30363D] flex flex-wrap items-center justify-between gap-2 text-xs text-[#8B949E]">
+          <div className="flex items-center gap-3">
+            <div>
+              Showing <strong className="text-[#E6EDF3]">{startIndex + 1}</strong>–
+              <strong className="text-[#E6EDF3]">{Math.min(startIndex + pageSize, totalCount)}</strong> of{' '}
+              <strong className="text-[#E6EDF3]">{totalCount}</strong> keys
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-[11px] text-[#8B949E]">Per page:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="bg-[#0D1117] border border-[#30363D] text-[#E6EDF3] px-1.5 py-0.5 text-xs outline-none"
+              >
+                {PAGE_SIZE_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
             <button
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={validPage <= 1}
+              disabled={currentPage <= 1 || isLoading}
               className="p-1.5 border border-[#30363D] bg-[#0D1117] text-[#8B949E] hover:text-[#E6EDF3] disabled:opacity-30"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <span className="font-mono text-xs">
-              Page {validPage} / {totalPages}
+              Page {currentPage} / {totalPages}
             </span>
             <button
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={validPage >= totalPages}
+              disabled={currentPage >= totalPages || isLoading}
               className="p-1.5 border border-[#30363D] bg-[#0D1117] text-[#8B949E] hover:text-[#E6EDF3] disabled:opacity-30"
             >
               <ChevronRight className="w-4 h-4" />
