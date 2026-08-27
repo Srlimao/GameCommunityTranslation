@@ -3,7 +3,6 @@ import { X, Terminal } from 'lucide-react';
 import { ApiClient } from '../../services/api_client.ts';
 import { SystemSettings } from '../../types/client_types.ts';
 import { ProviderConfigCard } from './ProviderConfigCard.tsx';
-import { StorageConfigCard } from './StorageConfigCard.tsx';
 import { useAuth } from '../auth/AuthContext.tsx';
 
 interface SettingsModalProps {
@@ -31,8 +30,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     enable_two_pass_refiner: false,
   });
 
-  const [activeTab, setActiveTab] = useState<'translation' | 'qa' | 'storage' | 'performance'>('translation');
-  const [saveScope, setSaveScope] = useState<'user' | 'system'>('user');
+  const [activeTab, setActiveTab] = useState<'translation' | 'qa' | 'performance'>('translation');
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -86,8 +84,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           {[
             { id: 'translation', label: '1. Translation Engine' },
             { id: 'qa', label: '2. QA & Inspector' },
-            { id: 'storage', label: '3. GCP Storage DB' },
-            { id: 'performance', label: '4. Tuning & Rules' },
+            { id: 'performance', label: '3. Tuning & Rules' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -171,8 +168,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               onModelChange={(m) => setSettings({ ...settings, qa_model: m })}
             />
           )}
-
-          {activeTab === 'storage' && <StorageConfigCard />}
 
           {activeTab === 'performance' && (
             <div className="space-y-3.5 bg-[#0D1117] p-4 border border-[#30363D]">
