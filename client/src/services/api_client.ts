@@ -9,69 +9,65 @@ import {
   TranslationStatus,
   JsonAnalysisResult,
   JsonSchemaConfig,
+  AIProviderType,
 } from '../types/client_types.ts';
-
-const API_BASE = '/api';
-
-const getAuthHeaders = (): Record<string, string> => {
-  const token = localStorage.getItem('auth_token');
-  return {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-};
+import { CloudGamesStore } from './cloud_games_store.ts';
+import { CloudTranslationsStore } from './cloud_translations_store.ts';
+import { CloudGlossaryStore } from './cloud_glossary_store.ts';
+import { CloudSettingsStore } from './cloud_settings_store.ts';
+import { BrowserAIService } from '../features/ai/browser_ai_service.ts';
+import { BrowserBatchQueue } from '../features/ai/browser_batch_queue.ts';
+import { ClientJsonSchemaDetector } from '../features/games/utils/client_json_schema_detector.ts';
+import { ClientJsonParser } from '../features/games/utils/client_json_parser.ts';
 
 export const ApiClient = {
   // Games
   async getGames(): Promise<GameSummary[]> {
-    const res = await fetch(`${API_BASE}/games`, { headers: getAuthHeaders() });
-    const data = await res.json();
-    return data.games || [];
+    return await CloudGamesStore.getAllGames();
   },
 
   async getGame(id: string): Promise<GameSummary> {
-    const res = await fetch(`${API_BASE}/games/${id}`, { headers: getAuthHeaders() });
-    const data = await res.json();
-    return data.game;
+    const game = await CloudGamesStore.getGame(id);
+    if (!game) throw new Error('Game not found');
+    return game;
   },
 
-  async createGame(game: { name: string; description?: string; context_prompt?: string; base_language?: string }): Promise<GameSummary> {
-    const res = await fetch(`${API_BASE}/games`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(game),
-    });
-    const data = await res.json();
-    if (!data.success) throw new Error(data.error || 'Failed to create game');
-    return data.game;
+  async createGame(game: {
+    name: string;
+    description?: string;
+    context_prompt?: string;
+    base_language?: string;
+  }): Promise<GameSummary> {
+    return await CloudGamesStore.createGame(game);
   },
 
   async updateGame(id: string, partial: Partial<GameSummary>): Promise<GameSummary> {
-    const res = await fetch(`${API_BASE}/games/${id}`, {
-      method: 'PUT',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(partial),
-    });
-    const data = await res.json();
-    if (!data.success) throw new Error(data.error || 'Failed to update game');
-    return data.game;
+    return await CloudGamesStore.updateGame(id, partial);
   },
 
   async deleteGame(id: string): Promise<boolean> {
-    const res = await fetch(`${API_BASE}/games/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
-    const data = await res.json();
-    return data.success;
+    return await CloudGamesStore.deleteGame(id);
   },
 
-  async analyzeJson(gameId: string, jsonContent: string | object): Promise<JsonAnalysisResult> {
-    const res = await fetch(`${API_BASE}/games/${gameId}/analyze-json`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ jsonContent }),
-    });
-    const data = await res.json();
-    if (!data.success) throw new Error(data.error || 'Failed to analyze JSON structure');
-    return data.analysis;
+  async discoverGameTags(id: string): Promise<{ tags: string[]; message: string }> {
+    const game = await CloudGamesStore.getGame(id);
+    if (!game) throw new Error('Game not found');
+    const firstLang = game.languages?.[0]?.language_code;
+    const items = firstLang ? await CloudTranslationsStore.getTranslations(id, firstLang) : [];
+    const tags = CloudGamesStore.extractTagsFromTexts(items.map((i) => i.source_text));
+    await CloudGamesStore.updateGame(id, { whitelist_tags: tags });
+    return { tags, message: `Discovered ${tags.length} unique tags.` };
+  },
+
+  async updateTagWhitelist(id: string, tags: string[]): Promise<string[]> {
+    const sorted = Array.from(new Set(tags.map((t) => t.trim()).filter(Boolean))).sort();
+    await CloudGamesStore.updateGame(id, { whitelist_tags: sorted });
+    return sorted;
+  },
+
+  async analyzeJson(_gameId: string, jsonContent: string | object): Promise<JsonAnalysisResult> {
+    const parsed = typeof jsonContent === 'string' ? JSON.parse(jsonContent) : jsonContent;
+    return ClientJsonSchemaDetector.analyze(parsed);
   },
 
   async importBaseJson(
@@ -79,48 +75,38 @@ export const ApiClient = {
     jsonContent: string | object,
     schemaConfig?: JsonSchemaConfig
   ): Promise<{ importedCount: number; message: string }> {
-    const res = await fetch(`${API_BASE}/games/${gameId}/import-json`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ jsonContent, schemaConfig }),
-    });
-    const data = await res.json();
-    if (!data.success) throw new Error(data.error || 'Failed to import JSON');
-    return data;
+    const parsed = typeof jsonContent === 'string' ? JSON.parse(jsonContent) : jsonContent;
+    const rawTemplate = typeof jsonContent === 'string' ? jsonContent : JSON.stringify(jsonContent);
+    const flattened = ClientJsonParser.flattenWithConfig(parsed, schemaConfig);
+    const count = await CloudTranslationsStore.importBaseKeys(
+      gameId,
+      flattened,
+      rawTemplate,
+      schemaConfig ? JSON.stringify(schemaConfig) : undefined
+    );
+    return { importedCount: count, message: `Successfully imported ${count} strings.` };
   },
 
   // Languages & Translations
   async getLanguages(gameId: string): Promise<LanguageProgress[]> {
-    const res = await fetch(`${API_BASE}/games/${gameId}/languages`, { headers: getAuthHeaders() });
-    const data = await res.json();
-    return data.languages || [];
+    const game = await CloudGamesStore.getGame(gameId);
+    return game?.languages || [];
   },
 
-  async addLanguage(gameId: string, language_code: string, language_name: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/games/${gameId}/languages`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ language_code, language_name }),
-    });
-    const data = await res.json();
-    if (!data.success) throw new Error(data.error || 'Failed to add language');
-    return data.language;
+  async addLanguage(gameId: string, language_code: string, language_name: string): Promise<LanguageProgress> {
+    return await CloudTranslationsStore.addLanguage(gameId, language_code, language_name);
   },
 
   async deleteLanguage(gameId: string, languageId: string): Promise<boolean> {
-    const res = await fetch(`${API_BASE}/games/${gameId}/languages/${languageId}`, { method: 'DELETE', headers: getAuthHeaders() });
-    const data = await res.json();
-    return data.success;
+    return await CloudTranslationsStore.deleteLanguage(gameId, languageId);
   },
 
-  async getTranslations(gameId: string, languageCode: string, filters?: { status?: string; search?: string }): Promise<KeyTranslationItem[]> {
-    const params = new URLSearchParams();
-    if (filters?.status) params.set('status', filters.status);
-    if (filters?.search) params.set('search', filters.search);
-
-    const res = await fetch(`${API_BASE}/games/${gameId}/translations/${languageCode}?${params.toString()}`, { headers: getAuthHeaders() });
-    const data = await res.json();
-    return data.items || [];
+  async getTranslations(
+    gameId: string,
+    languageCode: string,
+    filters?: { status?: string; search?: string }
+  ): Promise<KeyTranslationItem[]> {
+    return await CloudTranslationsStore.getTranslations(gameId, languageCode, filters);
   },
 
   async updateTranslationItem(params: {
@@ -130,13 +116,7 @@ export const ApiClient = {
     status?: TranslationStatus;
     model_used?: string;
   }): Promise<void> {
-    const res = await fetch(`${API_BASE}/games/dummy/translations/item`, {
-      method: 'PUT',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(params),
-    });
-    const data = await res.json();
-    if (!data.success) throw new Error(data.error || 'Failed to update translation');
+    await CloudTranslationsStore.updateTranslationItem(params);
   },
 
   async translateSingleKey(params: {
@@ -147,14 +127,40 @@ export const ApiClient = {
     sourceText: string;
     customInstructions?: string;
   }): Promise<string> {
-    const res = await fetch(`${API_BASE}/translate/single`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(params),
-    });
-    const data = await res.json();
-    if (!data.success) throw new Error(data.error || 'Translation failed');
-    return data.translatedText;
+    const game = await CloudGamesStore.getGame(params.gameId);
+    if (!game) throw new Error('Game not found');
+
+    const targetLang = game.languages?.find((l) => l.language_code === params.languageCode);
+    const targetLangName = targetLang?.language_name || params.languageCode;
+    const glossary = await CloudGlossaryStore.getGlossary(params.gameId, params.languageCode);
+    const settings = await CloudSettingsStore.getSettings();
+
+    const result = await BrowserAIService.translate(
+      {
+        gameName: game.name,
+        gameContext: game.context_prompt,
+        baseLanguage: game.base_language,
+        targetLanguageName: targetLangName,
+        targetLanguageCode: params.languageCode,
+        keyPath: params.keyPath,
+        sourceText: params.sourceText,
+        glossary,
+        customInstructions: params.customInstructions,
+      },
+      settings
+    );
+
+    if (targetLang) {
+      await CloudTranslationsStore.updateTranslationItem({
+        key_id: params.keyId,
+        language_id: targetLang.language_id,
+        translated_text: result.text,
+        status: 'ai_translated',
+        model_used: result.modelUsed,
+      });
+    }
+
+    return result.text;
   },
 
   async startBatch(params: {
@@ -163,100 +169,132 @@ export const ApiClient = {
     onlyUntranslated?: boolean;
     customInstructions?: string;
   }): Promise<string> {
-    const res = await fetch(`${API_BASE}/translate/batch`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(params),
+    const jobId = `job_${Date.now()}`;
+    const game = await CloudGamesStore.getGame(params.gameId);
+    if (!game) throw new Error('Game not found');
+
+    const targetLang = game.languages?.find((l) => l.language_code === params.languageCode);
+    const targetLangName = targetLang?.language_name || params.languageCode;
+    const glossary = await CloudGlossaryStore.getGlossary(params.gameId, params.languageCode);
+    const settings = await CloudSettingsStore.getSettings();
+
+    let items = await CloudTranslationsStore.getTranslations(params.gameId, params.languageCode);
+    if (params.onlyUntranslated) {
+      items = items.filter((i) => i.status === 'untranslated' || !i.translated_text);
+    }
+
+    // Run batch translation asynchronously
+    BrowserBatchQueue.runBatch({
+      jobId,
+      gameId: params.gameId,
+      gameName: game.name,
+      gameContext: game.context_prompt,
+      baseLanguage: game.base_language,
+      targetLanguageName: targetLangName,
+      targetLanguageCode: params.languageCode,
+      items,
+      glossary,
+      customInstructions: params.customInstructions,
+      settings,
+      onProgress: (data) => {
+        window.dispatchEvent(new CustomEvent('batch_translation_progress', { detail: data }));
+      },
+      onItemUpdated: async (item) => {
+        await CloudTranslationsStore.updateTranslationItem({
+          key_id: item.key_id,
+          language_id: item.language_id,
+          translated_text: item.translated_text,
+          status: item.status,
+          model_used: item.model_used,
+        });
+      },
     });
-    const data = await res.json();
-    if (!data.success) throw new Error(data.error || 'Failed to start batch');
-    return data.jobId;
+
+    return jobId;
   },
 
   async cancelBatch(jobId: string): Promise<boolean> {
-    const res = await fetch(`${API_BASE}/translate/cancel`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ jobId }),
-    });
-    const data = await res.json();
-    return data.success;
+    BrowserBatchQueue.cancelJob(jobId);
+    return true;
   },
 
   // Glossary
   async getGlossary(gameId: string, language?: string): Promise<GlossaryEntry[]> {
-    const url = language ? `${API_BASE}/games/${gameId}/glossary?language=${language}` : `${API_BASE}/games/${gameId}/glossary`;
-    const res = await fetch(url, { headers: getAuthHeaders() });
-    const data = await res.json();
-    return data.glossary || [];
+    return await CloudGlossaryStore.getGlossary(gameId, language);
   },
 
   async addGlossaryEntry(gameId: string, entry: Partial<GlossaryEntry>): Promise<GlossaryEntry> {
-    const res = await fetch(`${API_BASE}/games/${gameId}/glossary`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(entry),
-    });
-    const data = await res.json();
-    if (!data.success) throw new Error(data.error || 'Failed to add glossary entry');
-    return data.entry;
+    return await CloudGlossaryStore.addEntry(gameId, entry);
   },
 
   async batchAddGlossary(gameId: string, entries: Partial<GlossaryEntry>[]): Promise<number> {
-    const res = await fetch(`${API_BASE}/games/${gameId}/glossary/batch`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ entries }),
-    });
-    const data = await res.json();
-    if (!data.success) throw new Error(data.error || 'Failed to add candidate glossary entries');
-    return data.addedCount;
+    return await CloudGlossaryStore.batchAdd(gameId, entries);
   },
 
   async updateGlossaryEntry(gameId: string, id: string, entry: Partial<GlossaryEntry>): Promise<GlossaryEntry> {
-    const res = await fetch(`${API_BASE}/games/${gameId}/glossary/${id}`, {
-      method: 'PUT',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(entry),
-    });
-    const data = await res.json();
-    if (!data.success) throw new Error(data.error || 'Failed to update glossary entry');
-    return data.entry;
+    return await CloudGlossaryStore.updateEntry(gameId, id, entry);
   },
 
   async deleteGlossaryEntry(gameId: string, id: string): Promise<boolean> {
-    const res = await fetch(`${API_BASE}/games/${gameId}/glossary/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
-    const data = await res.json();
-    return data.success;
+    return await CloudGlossaryStore.deleteEntry(gameId, id);
   },
 
   // Gemini QA & Glossary Miner
-  async analyzeWithGemini(gameId: string, languageCode: string): Promise<{ candidates: GlossaryCandidate[]; issues: TranslationIssue[]; message?: string }> {
-    const res = await fetch(`${API_BASE}/gemini/analyze`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ gameId, languageCode }),
-    });
-    const data = await res.json();
-    if (!data.success) throw new Error(data.error || 'Gemini analysis failed');
-    return data;
+  async analyzeWithGemini(
+    gameId: string,
+    languageCode: string
+  ): Promise<{ candidates: GlossaryCandidate[]; issues: TranslationIssue[]; message?: string }> {
+    const game = await CloudGamesStore.getGame(gameId);
+    if (!game) throw new Error('Game not found');
+
+    const targetLang = game.languages?.find((l) => l.language_code === languageCode);
+    const glossary = await CloudGlossaryStore.getGlossary(gameId, languageCode);
+    const translations = await CloudTranslationsStore.getTranslations(gameId, languageCode);
+    const settings = await CloudSettingsStore.getSettings();
+
+    const validPairs = translations
+      .filter((t) => t.source_text?.trim() && t.translated_text?.trim())
+      .slice(0, 100);
+
+    if (validPairs.length === 0) {
+      return { candidates: [], issues: [], message: 'No translated pairs to inspect.' };
+    }
+
+    const glossaryList = glossary.map((g) => `- "${g.source_term}" -> "${g.target_term}"`).join('\n');
+    const pairsList = validPairs
+      .map((p, idx) => `[Item ${idx + 1}] Key: ${p.key_path}\nSource: "${p.source_text}"\nTranslation: "${p.translated_text}"`)
+      .join('\n\n');
+
+    const systemInstruction = `You are a Lead Game Localization Director & Terminology Specialist.
+Analyze translated game text pairs against the source text and world lore.
+Output valid JSON with "candidates" and "issues".`;
+
+    const prompt = `Game: ${game.name}
+${game.context_prompt ? `Lore:\n${game.context_prompt}` : ''}
+Target Language: ${targetLang?.language_name || languageCode} (${languageCode})
+Existing Glossary:\n${glossaryList || 'None'}
+
+Translation Pairs:
+${pairsList}`;
+
+    const res = await BrowserAIService.generateStructuredJson<{
+      candidates?: GlossaryCandidate[];
+      issues?: TranslationIssue[];
+    }>(prompt, systemInstruction, settings);
+
+    return {
+      candidates: res.candidates || [],
+      issues: res.issues || [],
+    };
   },
 
   // Settings & Testing
   async getSettings(): Promise<SystemSettings> {
-    const res = await fetch(`${API_BASE}/settings`, { headers: getAuthHeaders() });
-    const data = await res.json();
-    return data.settings;
+    return await CloudSettingsStore.getSettings();
   },
 
-  async updateSettings(settings: Partial<SystemSettings>, scope?: 'user' | 'system'): Promise<SystemSettings> {
-    const res = await fetch(`${API_BASE}/settings`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ settings, scope }),
-    });
-    const data = await res.json();
-    return data.settings;
+  async updateSettings(settings: Partial<SystemSettings>): Promise<SystemSettings> {
+    return await CloudSettingsStore.updateSettings(settings);
   },
 
   async testProvider(params: {
@@ -265,25 +303,25 @@ export const ApiClient = {
     baseUrl?: string;
     model?: string;
   }): Promise<{ success: boolean; message: string; models: string[] }> {
-    const res = await fetch(`${API_BASE}/settings/test-provider`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(params),
+    return await BrowserAIService.testProvider(params.provider as AIProviderType, {
+      apiKey: params.apiKey,
+      baseUrl: params.baseUrl,
+      model: params.model,
     });
-    return await res.json();
   },
 
   async testLmStudio(): Promise<{ success: boolean; message: string; models: string[] }> {
-    const res = await fetch(`${API_BASE}/settings/test-lm-studio`, { method: 'POST', headers: getAuthHeaders() });
-    return await res.json();
+    const settings = await CloudSettingsStore.getSettings();
+    return await BrowserAIService.testProvider('openai_compatible', {
+      baseUrl: settings.translation_base_url || 'http://localhost:1234/v1',
+      model: settings.translation_model,
+    });
   },
 
   async testGemini(apiKey?: string, model?: string): Promise<{ success: boolean; message: string; models: string[] }> {
-    const res = await fetch(`${API_BASE}/gemini/test`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ apiKey, model }),
+    return await BrowserAIService.testProvider('gemini', {
+      apiKey,
+      model,
     });
-    return await res.json();
   },
 };

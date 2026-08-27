@@ -21,6 +21,12 @@ const getIssueBadge = (type: TranslationIssue['issue_type']) => {
         classes: 'bg-[#A371F7]/20 text-[#BC8CFF] border-[#A371F7]',
         icon: AlertCircle,
       };
+    case 'tag_mismatch':
+      return {
+        label: 'TAG PARITY MISMATCH <></>',
+        classes: 'bg-[#F778BA]/20 text-[#F778BA] border-[#F778BA]',
+        icon: AlertCircle,
+      };
     case 'placeholder_mismatch':
       return {
         label: 'PLACEHOLDER ERROR',

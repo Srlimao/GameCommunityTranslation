@@ -9,6 +9,7 @@ export interface GameSummary {
   languages: LanguageProgress[];
   raw_json_template?: string;
   schema_config?: string;
+  whitelist_tags?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -125,7 +126,7 @@ export interface TranslationIssue {
   key_path: string;
   source_text: string;
   translated_text: string;
-  issue_type: 'placeholder_mismatch' | 'terminology_inconsistency' | 'formatting_loss' | 'meaning_drift' | 'tab_mismatch' | 'symbol_mismatch';
+  issue_type: 'placeholder_mismatch' | 'tag_mismatch' | 'terminology_inconsistency' | 'formatting_loss' | 'meaning_drift' | 'tab_mismatch' | 'symbol_mismatch';
   message: string;
   suggestion?: string;
   applied?: boolean;

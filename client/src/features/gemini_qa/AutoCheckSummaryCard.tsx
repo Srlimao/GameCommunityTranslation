@@ -1,6 +1,6 @@
 import React from 'react';
 import { CodeValidationSummary } from './code_validator.ts';
-import { CheckCircle2, AlertTriangle, Terminal, Code2, Layers, Zap } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Terminal, Code2, Layers, Zap, Tag } from 'lucide-react';
 
 interface AutoCheckSummaryCardProps {
   summary: CodeValidationSummary | null;
@@ -8,6 +8,8 @@ interface AutoCheckSummaryCardProps {
   onRunCodeValidator: () => void;
   onApplyAllFixes?: () => void;
   hasFixableIssues: boolean;
+  whitelistTagsCount?: number;
+  onOpenWhitelistModal?: () => void;
 }
 
 export const AutoCheckSummaryCard: React.FC<AutoCheckSummaryCardProps> = ({
@@ -16,6 +18,8 @@ export const AutoCheckSummaryCard: React.FC<AutoCheckSummaryCardProps> = ({
   onRunCodeValidator,
   onApplyAllFixes,
   hasFixableIssues,
+  whitelistTagsCount = 0,
+  onOpenWhitelistModal,
 }) => {
   return (
     <div className="bg-[#161B22] border border-[#30363D] p-4 space-y-4 font-mono">
@@ -38,7 +42,18 @@ export const AutoCheckSummaryCard: React.FC<AutoCheckSummaryCardProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {onOpenWhitelistModal && (
+            <button
+              onClick={onOpenWhitelistModal}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold bg-[#161B22] hover:bg-[#21262D] text-[#F778BA] border border-[#F778BA]/40 transition-colors"
+              title="Manage Game Tag Whitelist"
+            >
+              <Tag className="w-3.5 h-3.5" />
+              <span>TAG WHITELIST ({whitelistTagsCount})</span>
+            </button>
+          )}
+
           <button
             onClick={onRunCodeValidator}
             disabled={isRunning}
@@ -62,7 +77,7 @@ export const AutoCheckSummaryCard: React.FC<AutoCheckSummaryCardProps> = ({
 
       {/* Grid of Status Chips */}
       {summary ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2 text-xs">
           {/* Total Checked */}
           <div className="bg-[#0D1117] border border-[#30363D] p-2.5">
             <div className="text-[9px] uppercase font-bold text-[#8B949E] flex items-center gap-1">
@@ -79,6 +94,17 @@ export const AutoCheckSummaryCard: React.FC<AutoCheckSummaryCardProps> = ({
               <span>Clean Keys</span>
             </div>
             <div className="text-lg font-bold text-[#3FB950] mt-1">{summary.cleanCount}</div>
+          </div>
+
+          {/* Tag Parity */}
+          <div className={`bg-[#0D1117] border p-2.5 ${summary.tagMismatches > 0 ? 'border-[#F778BA]' : 'border-[#30363D]'}`}>
+            <div className="text-[9px] uppercase font-bold text-[#F778BA] flex items-center gap-1">
+              <Code2 className="w-3 h-3" />
+              <span>Tags &lt;&gt; &lt;/&gt;</span>
+            </div>
+            <div className={`text-lg font-bold mt-1 ${summary.tagMismatches > 0 ? 'text-[#F778BA]' : 'text-[#8B949E]'}`}>
+              {summary.tagMismatches > 0 ? `${summary.tagMismatches} Errors` : '0 OK'}
+            </div>
           </div>
 
           {/* Tab Mismatches */}

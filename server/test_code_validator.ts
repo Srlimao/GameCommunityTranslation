@@ -1,8 +1,21 @@
 import { CodeValidator } from '../client/src/features/gemini_qa/code_validator.ts';
 import { KeyTranslationItem } from '../client/src/types/client_types.ts';
+import { GamesRepository } from './features/games/games_repository.ts';
 
 function runTests() {
-  console.log('=== Running Code Validator Tests ===');
+  console.log('=== Running Code Validator & Whitelist Tests ===');
+
+  // Test 1: Tag Extraction from base texts
+  const sampleBaseTexts = [
+    'I enjoy explosions, but that <b>Fire</> <b>King</> is strong!',
+    '<color=#FF0000>Danger: [HP] is low!</color>',
+    'Press <rare>Action</rare> to begin',
+  ];
+  const extractedTags = GamesRepository.extractTagsFromTexts(sampleBaseTexts);
+  console.log('Extracted Whitelist Tags:', extractedTags);
+  if (!extractedTags.includes('<b>') || !extractedTags.includes('</>') || !extractedTags.includes('<color=#FF0000>')) {
+    throw new Error('Tag extraction failed to find expected tags');
+  }
 
   const testItems: KeyTranslationItem[] = [
     // 1. Tab mismatch test
@@ -29,47 +42,77 @@ function runTests() {
       order_index: 1,
       status: 'ai_translated',
     },
-    // 3. Markup tag mismatch test
+    // 3. Valid restructured sentence with whitelist tags (should NOT fail)
     {
       id: '3',
       key_id: 'k3',
-      key_path: 'SKILL_FIRE',
-      source_text: '<color=#FF0000><b>Fire Blast</b></color>',
-      translated_text: '<color=#FF0000>Explosão de Fogo',
+      key_path: 'RESTRUCTURED_VALID',
+      source_text: 'Press <color=yellow>Radar</color> and <color=yellow>Scan</color>',
+      translated_text: 'Pressione <color=yellow>Radar e Scan</color>', // Rephrased in PT-BR with valid tags
       language_id: 'l1',
       language_code: 'pt-BR',
       order_index: 2,
       status: 'ai_translated',
     },
-    // 4. Clean matching item
+    // 4. Unreal engine shorthand tags and corrupted backslash escapes (User case - should FAIL and be caught)
     {
       id: '4',
       key_id: 'k4',
-      key_path: 'CLEAN_ITEM',
-      source_text: '\t{user} pressed [E] to activate <color=yellow>Radar</color>:',
-      translated_text: '\t{user} pressionou [E] para ativar <color=yellow>Radar</color>:',
+      key_path: 'DIALOGUE_CORRUPTED_TAGS',
+      source_text: 'I enjoy a bit of explosions, but that <b>Fire</> <b>King</> might be enjoying it a wee much...',
+      translated_text: 'Eu curto umas explosões, mas aquele <b\\>Rei</\\> <b\\>Fogo</\\> pode estar gostando um tantinho demais...',
       language_id: 'l1',
       language_code: 'pt-BR',
       order_index: 3,
       status: 'ai_translated',
     },
+    // 5. Clean matching item
+    {
+      id: '5',
+      key_id: 'k5',
+      key_path: 'CLEAN_ITEM',
+      source_text: '\t{user} pressed [E] to activate <color=yellow>Radar</color>:',
+      translated_text: '\t{user} pressionou [E] para ativar <color=yellow>Radar</color>:',
+      language_id: 'l1',
+      language_code: 'pt-BR',
+      order_index: 4,
+      status: 'ai_translated',
+    },
   ];
 
-  const result = CodeValidator.validateAll(testItems);
-  console.log('Validation Summary:', JSON.stringify(result.summary, null, 2));
+  const whitelist = ['<b>', '</b>', '</>', '<color=yellow>', '</color>', '<rare>', '</rare>'];
+  const result = CodeValidator.validateAll(testItems, whitelist);
+  console.log('Validation Summary with Whitelist:', JSON.stringify(result.summary, null, 2));
 
   // Assertions
-  if (result.summary.totalChecked !== 4) {
-    throw new Error(`Expected 4 items checked, got ${result.summary.totalChecked}`);
+  if (result.summary.totalChecked !== 5) {
+    throw new Error(`Expected 5 items checked, got ${result.summary.totalChecked}`);
   }
-  if (result.summary.cleanCount !== 1) {
-    throw new Error(`Expected 1 clean item, got ${result.summary.cleanCount}`);
+  // Clean items: RESTRUCTURED_VALID (clean with whitelist) + CLEAN_ITEM = 2 clean items
+  if (result.summary.cleanCount !== 2) {
+    throw new Error(`Expected 2 clean items, got ${result.summary.cleanCount}`);
   }
   if (result.summary.tabMismatches < 1) {
     throw new Error(`Expected at least 1 tab mismatch, got ${result.summary.tabMismatches}`);
   }
-  if (result.summary.symbolMismatches < 1 && result.summary.bracketMismatches < 1) {
-    throw new Error('Expected symbol/bracket mismatches');
+  if (result.summary.tagMismatches !== 1) {
+    throw new Error(`Expected exactly 1 tag mismatch (DIALOGUE_CORRUPTED_TAGS), got ${result.summary.tagMismatches}`);
+  }
+
+  // Check specific fix for user case
+  const userCaseIssue = result.issues.find((i) => i.key_path === 'DIALOGUE_CORRUPTED_TAGS');
+  if (!userCaseIssue) {
+    throw new Error('Expected DIALOGUE_CORRUPTED_TAGS issue to be found');
+  }
+  if (userCaseIssue.issue_type !== 'tag_mismatch') {
+    throw new Error(`Expected tag_mismatch issue type, got ${userCaseIssue.issue_type}`);
+  }
+  console.log('User case suggestion:', userCaseIssue.suggestion);
+  if (
+    userCaseIssue.suggestion !==
+    'Eu curto umas explosões, mas aquele <b>Rei</> <b>Fogo</> pode estar gostando um tantinho demais...'
+  ) {
+    throw new Error(`Unexpected suggestion for user case: ${userCaseIssue.suggestion}`);
   }
 
   console.log('Detected Issues Count:', result.issues.length);
@@ -78,7 +121,7 @@ function runTests() {
     console.log(`  Suggestion: "${issue.suggestion}"`);
   }
 
-  console.log('✅ ALL CODE VALIDATOR TESTS PASSED!');
+  console.log('✅ ALL CODE VALIDATOR & WHITELIST TESTS PASSED!');
 }
 
 runTests();

@@ -27,6 +27,9 @@ try {
 try {
   db.exec("ALTER TABLE games ADD COLUMN schema_config TEXT DEFAULT ''");
 } catch {}
+try {
+  db.exec("ALTER TABLE games ADD COLUMN whitelist_tags TEXT DEFAULT '[]'");
+} catch {}
 
 // Deduplicate translation rows if any duplicates exist
 try {

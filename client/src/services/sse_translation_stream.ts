@@ -4,47 +4,30 @@ export type ProgressCallback = (progress: BatchProgressData) => void;
 export type KeyDoneCallback = (data: { jobId: string; keyId: string; keyPath: string; translatedText: string }) => void;
 
 export class SseTranslationStream {
-  private static eventSource: EventSource | null = null;
   private static progressListeners = new Set<ProgressCallback>();
   private static keyDoneListeners = new Set<KeyDoneCallback>();
   private static latestProgressByGameLang = new Map<string, BatchProgressData>();
   private static latestRunningJob: BatchProgressData | null = null;
+  private static isListeningToWindow = false;
 
   static connect(): void {
-    if (this.eventSource) return;
+    if (this.isListeningToWindow) return;
+    this.isListeningToWindow = true;
 
-    this.eventSource = new EventSource('/api/translate/stream');
-
-    this.eventSource.addEventListener('progress', (e: MessageEvent) => {
-      try {
-        const data: BatchProgressData = JSON.parse(e.data);
-        if (data.gameId && data.languageCode) {
-          this.latestProgressByGameLang.set(`${data.gameId}_${data.languageCode}`, data);
-        }
-        if (data.status === 'running') {
-          this.latestRunningJob = data;
-        } else if (this.latestRunningJob?.jobId === data.jobId) {
-          this.latestRunningJob = null;
-        }
-
-        this.progressListeners.forEach(cb => cb(data));
-      } catch (err) {
-        console.error('[SSE] Failed to parse progress event:', err);
+    // Listen to client-side browser batch events
+    window.addEventListener('batch_translation_progress', ((e: CustomEvent<BatchProgressData>) => {
+      const data = e.detail;
+      if (data?.gameId && data?.languageCode) {
+        this.latestProgressByGameLang.set(`${data.gameId}_${data.languageCode}`, data);
       }
-    });
-
-    this.eventSource.addEventListener('keyTranslated', (e: MessageEvent) => {
-      try {
-        const data = JSON.parse(e.data);
-        this.keyDoneListeners.forEach(cb => cb(data));
-      } catch (err) {
-        console.error('[SSE] Failed to parse keyTranslated event:', err);
+      if (data?.status === 'running') {
+        this.latestRunningJob = data;
+      } else if (this.latestRunningJob?.jobId === data?.jobId) {
+        this.latestRunningJob = null;
       }
-    });
 
-    this.eventSource.onerror = (err) => {
-      console.warn('[SSE] Stream disconnected or retrying:', err);
-    };
+      this.progressListeners.forEach((cb) => cb(data));
+    }) as EventListener);
   }
 
   static getActiveJob(gameId?: string, languageCode?: string): BatchProgressData | null {
@@ -55,7 +38,6 @@ export class SseTranslationStream {
     if (this.latestRunningJob && this.latestRunningJob.status === 'running') {
       return this.latestRunningJob;
     }
-    // Return any running job from the map if available
     for (const p of this.latestProgressByGameLang.values()) {
       if (p.status === 'running') return p;
     }
@@ -83,5 +65,4 @@ export class SseTranslationStream {
   }
 }
 
-// Automatically initiate connection on import
 SseTranslationStream.connect();

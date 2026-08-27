@@ -7,6 +7,7 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  base: './',
   root: 'client',
   server: {
     port: 5173,

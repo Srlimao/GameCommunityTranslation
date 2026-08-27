@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { X, Settings, Sliders, MessageSquareCode, User as UserIcon, Globe, Terminal } from 'lucide-react';
+import { X, Terminal } from 'lucide-react';
 import { ApiClient } from '../../services/api_client.ts';
 import { SystemSettings } from '../../types/client_types.ts';
 import { ProviderConfigCard } from './ProviderConfigCard.tsx';
+import { StorageConfigCard } from './StorageConfigCard.tsx';
 import { useAuth } from '../auth/AuthContext.tsx';
 
 interface SettingsModalProps {
@@ -24,34 +25,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     qa_base_url: '',
     qa_api_key: '',
 
-    batch_concurrency: 1,
+    batch_concurrency: 3,
     request_timeout_ms: 60000,
     custom_system_prompt: '',
     enable_two_pass_refiner: false,
   });
 
-  const [activeTab, setActiveTab] = useState<'translation' | 'qa' | 'performance'>('translation');
+  const [activeTab, setActiveTab] = useState<'translation' | 'qa' | 'storage' | 'performance'>('translation');
   const [saveScope, setSaveScope] = useState<'user' | 'system'>('user');
-  const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
-      loadSettings();
+      ApiClient.getSettings()
+        .then(setSettings)
+        .catch((err) => console.error('Failed to load settings:', err));
     }
   }, [isOpen]);
-
-  const loadSettings = async () => {
-    setIsLoading(true);
-    try {
-      const data = await ApiClient.getSettings();
-      setSettings(data);
-    } catch (err) {
-      console.error('Failed to load settings:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   if (!isOpen) return null;
 
@@ -59,7 +49,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     e.preventDefault();
     setIsSaving(true);
     try {
-      await ApiClient.updateSettings(settings, user?.role === 'admin' ? saveScope : 'user');
+      await ApiClient.updateSettings(settings);
       onClose();
     } catch (err: any) {
       alert(`Failed to save settings: ${err.message}`);
@@ -75,19 +65,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         <div className="flex items-center justify-between px-4 py-3 border-b border-[#30363D] bg-[#10141D]">
           <div className="flex items-center gap-2">
             <Terminal className="w-4 h-4 text-[#5865F2]" />
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="font-bold text-xs uppercase tracking-wider text-[#E6EDF3]">System Configuration</h2>
-                {user ? (
-                  <span className="text-[10px] bg-[#5865F2]/20 text-[#5865F2] border border-[#5865F2]/40 px-1.5 py-0.2 font-mono">
-                    @{user.username}
-                  </span>
-                ) : (
-                  <span className="text-[10px] bg-[#30363D] text-[#8B949E] px-1.5 py-0.2 font-mono">
-                    GLOBAL
-                  </span>
-                )}
-              </div>
+            <div className="flex items-center gap-2">
+              <h2 className="font-bold text-xs uppercase tracking-wider text-[#E6EDF3]">System Configuration</h2>
+              {user ? (
+                <span className="text-[10px] bg-[#5865F2]/20 text-[#5865F2] border border-[#5865F2]/40 px-1.5 py-0.2 font-mono">
+                  @{user.username}
+                </span>
+              ) : (
+                <span className="text-[10px] bg-[#30363D] text-[#8B949E] px-1.5 py-0.2 font-mono">CLOUD</span>
+              )}
             </div>
           </div>
           <button onClick={onClose} className="text-[#8B949E] hover:text-[#E6EDF3] p-1">
@@ -97,39 +83,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
         {/* Tab Navigation */}
         <div className="flex items-center border-b border-[#30363D] bg-[#0D1117] px-2 pt-1 gap-1">
-          <button
-            type="button"
-            onClick={() => setActiveTab('translation')}
-            className={`px-3 py-1.5 text-xs font-bold border-t border-x transition-colors ${
-              activeTab === 'translation'
-                ? 'bg-[#161B22] text-[#E6EDF3] border-[#30363D]'
-                : 'border-transparent text-[#8B949E] hover:text-[#E6EDF3]'
-            }`}
-          >
-            1. Translation Engine
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('qa')}
-            className={`px-3 py-1.5 text-xs font-bold border-t border-x transition-colors ${
-              activeTab === 'qa'
-                ? 'bg-[#161B22] text-[#E6EDF3] border-[#30363D]'
-                : 'border-transparent text-[#8B949E] hover:text-[#E6EDF3]'
-            }`}
-          >
-            2. QA & Glossary Inspector
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('performance')}
-            className={`px-3 py-1.5 text-xs font-bold border-t border-x transition-colors ${
-              activeTab === 'performance'
-                ? 'bg-[#161B22] text-[#E6EDF3] border-[#30363D]'
-                : 'border-transparent text-[#8B949E] hover:text-[#E6EDF3]'
-            }`}
-          >
-            3. Tuning & Rules
-          </button>
+          {[
+            { id: 'translation', label: '1. Translation Engine' },
+            { id: 'qa', label: '2. QA & Inspector' },
+            { id: 'storage', label: '3. GCP Storage DB' },
+            { id: 'performance', label: '4. Tuning & Rules' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`px-3 py-1.5 text-xs font-bold border-t border-x transition-colors ${
+                activeTab === tab.id
+                  ? 'bg-[#161B22] text-[#E6EDF3] border-[#30363D]'
+                  : 'border-transparent text-[#8B949E] hover:text-[#E6EDF3]'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
         <form onSubmit={handleSave} className="p-4 space-y-4 max-h-[75vh] overflow-y-auto text-xs">
@@ -151,7 +123,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 onTemperatureChange={(t) => setSettings({ ...settings, translation_temperature: t })}
               />
 
-              {/* Two-Pass Validation / Auditor Refiner Toggle */}
               <div className="bg-[#0D1117] p-3.5 border border-[#30363D] flex items-start justify-between gap-4">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
@@ -169,7 +140,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     )}
                   </div>
                   <p className="text-[11px] text-[#8B949E] leading-relaxed">
-                    Executes an automatic second verification call to audit tag parity (e.g. restoring <span className="text-[#5865F2] font-bold">&lt;b&gt;...&lt;/&gt;</span> if markdown was used), check placeholders (<span className="text-[#3FB950] font-bold">&#123;0&#125;</span>, <span className="text-[#3FB950] font-bold">%s</span>), and correct formatting drifts.
+                    Executes an automatic second verification call to audit tag parity (e.g. restoring &lt;b&gt;...&lt;/&gt; if markdown was used) and correct formatting drifts.
                   </p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer flex-shrink-0 mt-0.5">
@@ -179,7 +150,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     onChange={(e) => setSettings({ ...settings, enable_two_pass_refiner: e.target.checked })}
                     className="sr-only peer"
                   />
-                  <div className="w-9 h-5 bg-[#30363D] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#5865F2]"></div>
+                  <div className="w-9 h-5 bg-[#30363D] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#5865F2]"></div>
                 </label>
               </div>
             </div>
@@ -201,12 +172,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             />
           )}
 
+          {activeTab === 'storage' && <StorageConfigCard />}
+
           {activeTab === 'performance' && (
             <div className="space-y-3.5 bg-[#0D1117] p-4 border border-[#30363D]">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-[#8B949E] mb-1">
-                    Batch Queue Concurrency
+                    Batch Concurrency
                   </label>
                   <input
                     type="number"
@@ -246,36 +219,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   placeholder="e.g. Always use standard video game terminology for UI buttons; keep tone formal..."
                   className="w-full bg-[#161B22] border border-[#30363D] p-2.5 text-xs text-[#E6EDF3] outline-none focus:border-[#5865F2]"
                 />
-              </div>
-            </div>
-          )}
-
-          {/* Admin Scope Selector */}
-          {user?.role === 'admin' && (
-            <div className="bg-[#10141D] p-3 border border-[#30363D] flex items-center justify-between">
-              <div>
-                <div className="text-xs font-bold text-[#E6EDF3]">Save Scope</div>
-                <div className="text-[10px] text-[#8B949E]">Apply to your account only or set system-wide server defaults</div>
-              </div>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => setSaveScope('user')}
-                  className={`px-2.5 py-1 text-xs font-bold border transition-colors ${
-                    saveScope === 'user' ? 'bg-[#5865F2] text-white border-[#5865F2]' : 'bg-[#0D1117] text-[#8B949E] border-[#30363D]'
-                  }`}
-                >
-                  MY PROFILE
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSaveScope('system')}
-                  className={`px-2.5 py-1 text-xs font-bold border transition-colors ${
-                    saveScope === 'system' ? 'bg-[#3FB950] text-slate-950 border-[#3FB950]' : 'bg-[#0D1117] text-[#8B949E] border-[#30363D]'
-                  }`}
-                >
-                  GLOBAL SERVER
-                </button>
               </div>
             </div>
           )}

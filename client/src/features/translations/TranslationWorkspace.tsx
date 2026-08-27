@@ -157,9 +157,24 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
     }
   };
 
-  const handleExportJson = () => {
+  const handleExportJson = async () => {
     if (!selectedLangCode) return;
-    window.open(`/api/games/${game.id}/export-json/${selectedLangCode}`, '_blank');
+    try {
+      const exportMap = await ApiClient.getTranslations(game.id, selectedLangCode).then(items => {
+        const map: Record<string, string> = {};
+        for (const item of items) {
+          map[item.key_path] = item.translated_text || item.source_text;
+        }
+        return map;
+      });
+      const rawTemplate = game.raw_json_template || '';
+      const { ClientJsonExporter } = await import('../games/utils/client_json_exporter.ts');
+      const localizedJson = ClientJsonExporter.unflattenWithTemplate(exportMap, rawTemplate, game.schema_config);
+      ClientJsonExporter.downloadJsonFile(localizedJson, `${game.name}_${selectedLangCode}.json`);
+    } catch (err: any) {
+      console.error('Export error:', err);
+      alert('Failed to export JSON: ' + (err.message || err));
+    }
   };
 
   const untranslatedCount = items.filter((i) => !i.translated_text || i.status === 'untranslated').length;

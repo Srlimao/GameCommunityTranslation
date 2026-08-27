@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS games (
   base_language TEXT DEFAULT 'en-US',
   raw_json_template TEXT DEFAULT '',
   schema_config TEXT DEFAULT '',
+  whitelist_tags TEXT DEFAULT '[]',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );

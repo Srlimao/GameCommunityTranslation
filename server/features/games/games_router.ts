@@ -4,20 +4,32 @@ import { JsonStructureParser } from './json_structure_parser.ts';
 import { JsonSchemaDetector } from './json_schema_detector.ts';
 import { TranslationsRepository } from '../translations/translations_repository.ts';
 import { GlossaryRepository } from '../glossary/glossary_repository.ts';
-import { JsonSchemaConfig } from '../../types/domain_types.ts';
+import { JsonSchemaConfig, Game } from '../../types/domain_types.ts';
 
 export const gamesRouter = Router();
+
+const formatGameWithStats = (g: Game) => {
+  let parsedTags: string[] = [];
+  try {
+    if (g.whitelist_tags) {
+      parsedTags = typeof g.whitelist_tags === 'string' ? JSON.parse(g.whitelist_tags) : g.whitelist_tags;
+    }
+  } catch {}
+
+  return {
+    ...g,
+    whitelist_tags: parsedTags,
+    totalKeys: GamesRepository.getBaseKeysCount(g.id),
+    glossaryCount: GlossaryRepository.getByGame(g.id).length,
+    languages: TranslationsRepository.getLanguages(g.id),
+  };
+};
 
 // GET all games
 gamesRouter.get('/', (req: Request, res: Response) => {
   try {
     const games = GamesRepository.getAll();
-    const gamesWithStats = games.map(g => ({
-      ...g,
-      totalKeys: GamesRepository.getBaseKeysCount(g.id),
-      glossaryCount: GlossaryRepository.getByGame(g.id).length,
-      languages: TranslationsRepository.getLanguages(g.id),
-    }));
+    const gamesWithStats = games.map(formatGameWithStats);
     res.json({ success: true, games: gamesWithStats });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -31,13 +43,7 @@ gamesRouter.get('/:id', (req: Request, res: Response) => {
     if (!game) {
       return res.status(404).json({ success: false, error: 'Game not found' });
     }
-    const stats = {
-      ...game,
-      totalKeys: GamesRepository.getBaseKeysCount(game.id),
-      glossaryCount: GlossaryRepository.getByGame(game.id).length,
-      languages: TranslationsRepository.getLanguages(game.id),
-    };
-    res.json({ success: true, game: stats });
+    res.json({ success: true, game: formatGameWithStats(game) });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -51,7 +57,7 @@ gamesRouter.post('/', (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'Game name is required' });
     }
     const game = GamesRepository.create({ name, description, context_prompt, base_language });
-    res.json({ success: true, game });
+    res.json({ success: true, game: formatGameWithStats(game) });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -60,12 +66,44 @@ gamesRouter.post('/', (req: Request, res: Response) => {
 // PUT update game
 gamesRouter.put('/:id', (req: Request, res: Response) => {
   try {
-    const { name, description, context_prompt, base_language } = req.body;
-    const updated = GamesRepository.update(req.params.id, { name, description, context_prompt, base_language });
+    const { name, description, context_prompt, base_language, whitelist_tags } = req.body;
+    const updated = GamesRepository.update(req.params.id, { name, description, context_prompt, base_language, whitelist_tags });
     if (!updated) {
       return res.status(404).json({ success: false, error: 'Game not found' });
     }
-    res.json({ success: true, game: updated });
+    res.json({ success: true, game: formatGameWithStats(updated) });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST discover & update tags from base keys
+gamesRouter.post('/:id/discover-tags', (req: Request, res: Response) => {
+  try {
+    const game = GamesRepository.getById(req.params.id);
+    if (!game) {
+      return res.status(404).json({ success: false, error: 'Game not found' });
+    }
+    const tags = GamesRepository.discoverGameTags(req.params.id);
+    res.json({
+      success: true,
+      tags,
+      message: `Discovered and saved ${tags.length} unique tags from base keys`,
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PUT update tag whitelist directly
+gamesRouter.put('/:id/whitelist-tags', (req: Request, res: Response) => {
+  try {
+    const { tags } = req.body;
+    if (!Array.isArray(tags)) {
+      return res.status(400).json({ success: false, error: 'tags must be an array of strings' });
+    }
+    const updatedTags = GamesRepository.updateWhitelistTags(req.params.id, tags);
+    res.json({ success: true, tags: updatedTags });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -144,7 +182,7 @@ gamesRouter.post('/:id/import-json', (req: Request, res: Response) => {
   }
 });
 
-// GET export JSON for target language (reconstructs with raw template if available)
+// GET export JSON for target language
 gamesRouter.get('/:id/export-json/:languageCode', (req: Request, res: Response) => {
   try {
     const { id, languageCode } = req.params;

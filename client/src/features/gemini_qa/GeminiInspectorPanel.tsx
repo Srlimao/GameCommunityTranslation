@@ -6,6 +6,7 @@ import { TranslationIssueCard } from './TranslationIssueCard.tsx';
 import { AutoCheckSummaryCard } from './AutoCheckSummaryCard.tsx';
 import { InspectorHeader } from './InspectorHeader.tsx';
 import { InspectorTabs } from './InspectorTabs.tsx';
+import { TagWhitelistModal } from './TagWhitelistModal.tsx';
 import { CodeValidator } from './code_validator.ts';
 import { useInspectorStore } from './use_inspector_store.ts';
 import { Sparkles, CheckCircle2, ShieldCheck } from 'lucide-react';
@@ -36,24 +37,26 @@ export const GeminiInspectorPanel: React.FC<GeminiInspectorPanelProps> = ({
   } = useInspectorStore(game.id, initialLanguageCode || game.languages?.[0]?.language_code || '');
 
   const [languages, setLanguages] = useState(game.languages || []);
+  const [whitelistTags, setWhitelistTags] = useState<string[]>(game.whitelist_tags || []);
+  const [isWhitelistModalOpen, setIsWhitelistModalOpen] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   React.useEffect(() => {
-    if (game.languages && game.languages.length > 0) {
+    if (game.whitelist_tags) setWhitelistTags(game.whitelist_tags);
+  }, [game.whitelist_tags]);
+
+  React.useEffect(() => {
+    if (game.languages?.length) {
       setLanguages(game.languages);
-      if (!selectedLangCode) {
-        setSelectedLangCode(game.languages[0].language_code);
-      }
+      if (!selectedLangCode) setSelectedLangCode(game.languages[0].language_code);
     } else {
       ApiClient.getLanguages(game.id).then((langs) => {
-        if (langs && langs.length > 0) {
+        if (langs?.length) {
           setLanguages(langs);
-          if (!selectedLangCode) {
-            setSelectedLangCode(langs[0].language_code);
-          }
+          if (!selectedLangCode) setSelectedLangCode(langs[0].language_code);
         }
       }).catch(console.error);
     }
@@ -68,14 +71,12 @@ export const GeminiInspectorPanel: React.FC<GeminiInspectorPanelProps> = ({
         targetLang = languages[0].language_code;
       } else {
         const fetched = await ApiClient.getLanguages(game.id);
-        if (fetched && fetched.length > 0) {
+        if (fetched?.length) {
           setLanguages(fetched);
           targetLang = fetched[0].language_code;
         }
       }
-      if (targetLang) {
-        setSelectedLangCode(targetLang);
-      }
+      if (targetLang) setSelectedLangCode(targetLang);
     }
     return targetLang;
   };
@@ -87,7 +88,7 @@ export const GeminiInspectorPanel: React.FC<GeminiInspectorPanelProps> = ({
     setError(null);
     try {
       const items = await ApiClient.getTranslations(game.id, targetLang);
-      const result = CodeValidator.validateAll(items);
+      const result = CodeValidator.validateAll(items, whitelistTags);
       setValidationSummary(result.summary);
       addOrMergeIssues(result.issues);
       setInfoMessage(`Code validator completed: ${result.summary.totalChecked} keys scanned, ${result.issues.length} issue(s) detected.`);
@@ -108,12 +109,8 @@ export const GeminiInspectorPanel: React.FC<GeminiInspectorPanelProps> = ({
     try {
       const result = await ApiClient.analyzeWithGemini(game.id, targetLang);
       setCandidates(result.candidates || []);
-      if (result.issues?.length) {
-        addOrMergeIssues(result.issues);
-      }
-      if (result.message) {
-        setInfoMessage(result.message);
-      }
+      if (result.issues?.length) addOrMergeIssues(result.issues);
+      if (result.message) setInfoMessage(result.message);
     } catch (err: any) {
       setError(err.message || 'Gemini analysis failed');
     } finally {
@@ -224,6 +221,8 @@ export const GeminiInspectorPanel: React.FC<GeminiInspectorPanelProps> = ({
         onRunCodeValidator={handleRunCodeValidator}
         onApplyAllFixes={handleApplyAllFixes}
         hasFixableIssues={unappliedFixesCount > 0}
+        whitelistTagsCount={whitelistTags.length}
+        onOpenWhitelistModal={() => setIsWhitelistModalOpen(true)}
       />
 
       <InspectorTabs
@@ -234,27 +233,30 @@ export const GeminiInspectorPanel: React.FC<GeminiInspectorPanelProps> = ({
         onAddAllCandidates={handleAddAllCandidates}
       />
 
-      {activeTab === 'auto_checks' && (
-        <div className="space-y-3">
-          {issues.filter((i) => i.issue_type === 'tab_mismatch' || i.issue_type === 'symbol_mismatch' || i.issue_type === 'formatting_loss').length === 0 ? (
-            <div className="p-8 text-center text-[#8B949E] bg-[#161B22] border border-[#30363D]">
-              <ShieldCheck className="w-8 h-8 text-[#3FB950] mx-auto mb-2" />
-              <div className="text-xs font-bold mb-1 text-[#E6EDF3]">NO CODE PARITY ISSUES FOUND</div>
-              <div className="text-[11px] text-[#8B949E]">
-                Tabs, brackets, format tags, and variables are matching correctly across all scanned pairs.
+      {activeTab === 'auto_checks' && (() => {
+        const autoIssues = issues.filter((i) =>
+          ['tag_mismatch', 'placeholder_mismatch', 'tab_mismatch', 'symbol_mismatch', 'formatting_loss'].includes(i.issue_type)
+        );
+        return (
+          <div className="space-y-3">
+            {autoIssues.length === 0 ? (
+              <div className="p-8 text-center text-[#8B949E] bg-[#161B22] border border-[#30363D]">
+                <ShieldCheck className="w-8 h-8 text-[#3FB950] mx-auto mb-2" />
+                <div className="text-xs font-bold mb-1 text-[#E6EDF3]">NO CODE PARITY ISSUES FOUND</div>
+                <div className="text-[11px] text-[#8B949E]">
+                  Tags, tabs, brackets, variables, and formatting match correctly across all scanned keys.
+                </div>
               </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {issues
-                .filter((i) => i.issue_type === 'tab_mismatch' || i.issue_type === 'symbol_mismatch' || i.issue_type === 'formatting_loss')
-                .map((issue, idx) => (
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {autoIssues.map((issue, idx) => (
                   <TranslationIssueCard key={idx} issue={issue} onApplyFix={handleApplyFix} />
                 ))}
-            </div>
-          )}
-        </div>
-      )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {activeTab === 'issues' && (
         <div>
@@ -291,6 +293,14 @@ export const GeminiInspectorPanel: React.FC<GeminiInspectorPanelProps> = ({
           )}
         </div>
       )}
+
+      <TagWhitelistModal
+        gameId={game.id}
+        isOpen={isWhitelistModalOpen}
+        onClose={() => setIsWhitelistModalOpen(false)}
+        initialTags={whitelistTags}
+        onTagsUpdated={(updated) => setWhitelistTags(updated)}
+      />
     </div>
   );
 };
