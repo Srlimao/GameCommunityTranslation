@@ -8,9 +8,21 @@ export interface RemoteDbConfig {
   apiKey: string;
 }
 
+const getEnv = (key: string): string => {
+  try {
+    if (typeof import.meta !== 'undefined' && (import.meta as any).env?.[key]) {
+      return (import.meta as any).env[key];
+    }
+    if (typeof process !== 'undefined' && process.env?.[key]) {
+      return process.env[key] || '';
+    }
+  } catch {}
+  return '';
+};
+
 export const DEFAULT_REMOTE_DB_CONFIG: RemoteDbConfig = {
-  baseUrl: (import.meta as any).env?.VITE_GCP_DB_BASE_URL || 'https://db.dunhas.com/api',
-  apiKey: (import.meta as any).env?.VITE_GCP_DB_API_KEY || '',
+  baseUrl: getEnv('VITE_GCP_DB_BASE_URL') || getEnv('GCP_DB_BASE_URL') || 'https://db.dunhas.com/api',
+  apiKey: getEnv('VITE_GCP_DB_API_KEY') || getEnv('GCP_API_KEY') || '',
 };
 
 const STORAGE_KEY_CONFIG = 'lt_gcp_db_config';
