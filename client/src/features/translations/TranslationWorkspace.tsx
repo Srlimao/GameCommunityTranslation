@@ -33,7 +33,6 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
   const [isImportJsonOpen, setIsImportJsonOpen] = useState(false);
   const [activeBatch, setActiveBatch] = useState<BatchProgressData | null>(null);
   const [glossaryCount, setGlossaryCount] = useState<number>(game.glossaryCount || 0);
-
   const contextData = React.useMemo(() => ContextSerializer.parse(game.context_prompt), [game.context_prompt]);
 
   useEffect(() => {
@@ -43,14 +42,11 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
   }, [game.languages, selectedLangCode]);
 
   useEffect(() => {
-    if (!game.id) return;
-    ApiClient.getGlossary(game.id, selectedLangCode)
-      .then((entries) => {
-        setGlossaryCount(entries.length);
-      })
-      .catch((err) => {
-        console.error('Failed to load glossary entries count:', err);
-      });
+    if (game.id) {
+      ApiClient.getGlossary(game.id, selectedLangCode)
+        .then((entries) => setGlossaryCount(entries.length))
+        .catch(() => {});
+    }
   }, [game.id, selectedLangCode, game.glossaryCount]);
 
   const loadTranslations = async () => {
@@ -66,20 +62,15 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
     }
   };
 
-  useEffect(() => {
-    loadTranslations();
-  }, [game.id, selectedLangCode]);
+  useEffect(() => { loadTranslations(); }, [game.id, selectedLangCode]);
 
   useEffect(() => {
     const existing = SseTranslationStream.getActiveJob(game.id, selectedLangCode) || SseTranslationStream.getActiveJob();
-    if (existing && existing.status === 'running') {
-      setActiveBatch(existing);
-    }
+    if (existing?.status === 'running') setActiveBatch(existing);
 
     const unsubProgress = SseTranslationStream.onProgress((data) => {
-      if (data.status === 'running') {
-        setActiveBatch(data);
-      } else if (data.status === 'completed' || data.status === 'cancelled' || data.status === 'error') {
+      if (data.status === 'running') setActiveBatch(data);
+      else if (['completed', 'cancelled', 'error'].includes(data.status)) {
         setActiveBatch(null);
         loadTranslations();
         onRefreshGame();
@@ -88,18 +79,11 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
 
     const unsubKey = SseTranslationStream.onKeyDone((data) => {
       setItems((prev) =>
-        prev.map((it) =>
-          it.key_id === data.keyId
-            ? { ...it, translated_text: data.translatedText, status: 'ai_translated' }
-            : it
-        )
+        prev.map((it) => (it.key_id === data.keyId ? { ...it, translated_text: data.translatedText, status: 'ai_translated' } : it))
       );
     });
 
-    return () => {
-      unsubProgress();
-      unsubKey();
-    };
+    return () => { unsubProgress(); unsubKey(); };
   }, [game.id, selectedLangCode]);
 
   const handleStopActiveBatch = async () => {
@@ -177,7 +161,23 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
     }
   };
 
-  const untranslatedCount = items.filter((i) => !i.translated_text || i.status === 'untranslated').length;
+  const liveProgress = React.useMemo(() => {
+    if (!currentLang) return undefined;
+    if (items.length === 0) return currentLang;
+    const translated = items.filter(
+      (i) => i.status !== 'untranslated' && !!i.translated_text?.trim()
+    ).length;
+    const approved = items.filter((i) => i.status === 'approved').length;
+    const total = items.length;
+    const percentage = total > 0 ? Math.round((translated / total) * 100) : 0;
+    return {
+      ...currentLang,
+      total_keys: total,
+      translated_keys: translated,
+      approved_keys: approved,
+      progress_percentage: percentage,
+    };
+  }, [currentLang, items]);
 
   return (
     <div className="space-y-3 font-mono">
@@ -204,7 +204,7 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
       {selectedLangCode && currentLang ? (
         <div className="space-y-3">
           <TranslationProgressBar
-            progress={currentLang}
+            progress={liveProgress}
             totalKeys={game.totalKeys || items.length}
           />
 

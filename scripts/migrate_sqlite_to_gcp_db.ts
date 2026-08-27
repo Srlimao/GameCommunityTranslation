@@ -47,6 +47,29 @@ async function migrate() {
       if (g.whitelist_tags) whitelistTags = JSON.parse(g.whitelist_tags);
     } catch {}
 
+    const languageStats = languages.map((l) => {
+      const stats = db.prepare(`
+        SELECT 
+          SUM(CASE WHEN t.status != 'untranslated' AND t.translated_text != '' THEN 1 ELSE 0 END) as translated,
+          SUM(CASE WHEN t.status = 'approved' THEN 1 ELSE 0 END) as approved
+        FROM translations t
+        WHERE t.language_id = ?
+      `).get(l.id) as { translated: number; approved: number };
+      const translatedCount = stats?.translated || 0;
+      const approvedCount = stats?.approved || 0;
+      const total = totalKeysRow.c || 0;
+      const progress = total > 0 ? Math.round((translatedCount / total) * 100) : 0;
+      return {
+        language_id: l.id,
+        language_code: l.language_code,
+        language_name: l.language_name,
+        total_keys: total,
+        translated_keys: translatedCount,
+        approved_keys: approvedCount,
+        progress_percentage: progress,
+      };
+    });
+
     const gameDoc = {
       id: g.id,
       name: g.name,
@@ -55,15 +78,7 @@ async function migrate() {
       base_language: g.base_language || 'en-US',
       totalKeys: totalKeysRow.c || 0,
       glossaryCount: glossaryCountRow.c || 0,
-      languages: languages.map((l) => ({
-        language_id: l.id,
-        language_code: l.language_code,
-        language_name: l.language_name,
-        total_keys: totalKeysRow.c || 0,
-        translated_keys: 0,
-        approved_keys: 0,
-        progress_percentage: 0,
-      })),
+      languages: languageStats,
       schema_config: g.schema_config || '',
       whitelist_tags: whitelistTags,
       created_at: g.created_at || new Date().toISOString(),
