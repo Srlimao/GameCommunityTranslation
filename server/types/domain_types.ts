@@ -130,7 +130,7 @@ export interface TranslationIssue {
   key_path: string;
   source_text: string;
   translated_text: string;
-  issue_type: 'placeholder_mismatch' | 'tag_mismatch' | 'terminology_inconsistency' | 'formatting_loss' | 'meaning_drift' | 'tab_mismatch' | 'symbol_mismatch';
+  issue_type: 'placeholder_mismatch' | 'tag_mismatch' | 'terminology_inconsistency' | 'formatting_loss' | 'meaning_drift' | 'tab_mismatch' | 'symbol_mismatch' | 'identical_to_source';
   message: string;
   suggestion?: string;
   applied?: boolean;

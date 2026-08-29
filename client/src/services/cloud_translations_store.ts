@@ -1,30 +1,19 @@
 import { v4 as uuidv4 } from 'uuid';
-import { KeyTranslationItem, LanguageProgress, TranslationStatus } from '../types/client_types.ts';
+import { KeyTranslationItem, LanguageProgress, TranslationStatus, JsonSchemaConfig } from '../types/client_types.ts';
 import { RemoteJsonDb } from './remote_json_db.ts';
 import { LocalCacheStore } from './local_cache_store.ts';
 import { CloudGamesStore } from './cloud_games_store.ts';
-import { FlattenedKeyItem } from '../features/games/utils/client_json_parser.ts';
+import { FlattenedKeyItem, ClientJsonParser } from '../features/games/utils/client_json_parser.ts';
 import { runWithConcurrency } from './concurrency_limiter.ts';
 
-const COLLECTION_TRANSLATIONS = 'lt_translations';
-const CHUNK_SIZE = 1000;
-const CONCURRENT_CHUNKS = 4;
-
-export interface TranslationChunkDoc {
-  chunk_id: string;
-  game_id: string;
-  language_code: string;
-  chunk_index: number;
-  items: KeyTranslationItem[];
-}
-
-export interface PaginatedResult {
-  items: KeyTranslationItem[];
-  totalCount: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
-}
+import {
+  TranslationChunkManager,
+  COLLECTION_TRANSLATIONS,
+  CHUNK_SIZE,
+  CONCURRENT_CHUNKS,
+  TranslationChunkDoc,
+  PaginatedResult,
+} from './translation_chunk_manager.ts';
 
 export class CloudTranslationsStore {
   static async importBaseKeys(
@@ -50,7 +39,7 @@ export class CloudTranslationsStore {
         translated_text: '', status: 'untranslated', updated_at: new Date().toISOString(),
       }));
 
-      await this.saveItemsInChunks(gameId, lang.language_code, items, (c, t) => {
+      await TranslationChunkManager.saveItemsInChunks(gameId, lang.language_code, items, (c, t) => {
         if (onProgress) onProgress(lIdx * t + c, targetLangs.length * t);
       });
     }
@@ -68,30 +57,11 @@ export class CloudTranslationsStore {
     items: KeyTranslationItem[],
     onProgress?: (completed: number, total: number) => void
   ): Promise<void> {
-    const totalChunks = Math.ceil(items.length / CHUNK_SIZE);
-    const chunkIndexes = Array.from({ length: totalChunks }, (_, i) => i);
-
-    await runWithConcurrency(chunkIndexes, CONCURRENT_CHUNKS, async (i) => {
-      const chunkItems = items.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
-      const chunkId = `${gameId}_${langCode}_chunk_${i}`;
-      const doc: TranslationChunkDoc = {
-        chunk_id: chunkId, game_id: gameId, language_code: langCode, chunk_index: i, items: chunkItems,
-      };
-      await LocalCacheStore.set('translation_chunks', doc);
-      await RemoteJsonDb.upsertDoc(COLLECTION_TRANSLATIONS, chunkId, doc);
-    }, onProgress);
-
-    const metaDoc = { game_id: gameId, language_code: langCode, totalChunks, totalItems: items.length };
-    await RemoteJsonDb.upsertDoc(COLLECTION_TRANSLATIONS, `${gameId}_${langCode}_meta`, metaDoc);
+    return await TranslationChunkManager.saveItemsInChunks(gameId, langCode, items, onProgress);
   }
 
   static async getChunk(gameId: string, langCode: string, chunkIndex: number): Promise<TranslationChunkDoc | null> {
-    const chunkId = `${gameId}_${langCode}_chunk_${chunkIndex}`;
-    const cached = await LocalCacheStore.get<TranslationChunkDoc>('translation_chunks', chunkId);
-    if (cached) return cached;
-    const doc = await RemoteJsonDb.getDoc<TranslationChunkDoc>(COLLECTION_TRANSLATIONS, chunkId);
-    if (doc) await LocalCacheStore.set('translation_chunks', doc);
-    return doc;
+    return await TranslationChunkManager.getChunk(gameId, langCode, chunkIndex);
   }
 
   static async getPaginatedTranslations(params: {
@@ -135,13 +105,21 @@ export class CloudTranslationsStore {
     return { items, totalCount: totalCount || items.length, page: validPage, pageSize, totalPages };
   }
 
-  static async getTranslations(gameId: string, langCode: string, filters?: { status?: string; search?: string }): Promise<KeyTranslationItem[]> {
+  static async getTranslations(
+    gameId: string,
+    langCode: string,
+    filters?: { status?: string; search?: string },
+    onSync?: (sync: { loaded: number; total: number }) => void
+  ): Promise<KeyTranslationItem[]> {
     const meta = await RemoteJsonDb.getDoc<{ totalChunks: number }>(COLLECTION_TRANSLATIONS, `${gameId}_${langCode}_meta`);
     const totalChunks = meta?.totalChunks || 1;
     const chunkMap = new Map<number, KeyTranslationItem[]>();
+    let loaded = 0;
     await runWithConcurrency(Array.from({ length: totalChunks }, (_, i) => i), CONCURRENT_CHUNKS, async (i) => {
       const chunk = await this.getChunk(gameId, langCode, i);
       if (chunk?.items) chunkMap.set(i, chunk.items);
+      loaded++;
+      if (onSync) onSync({ loaded, total: totalChunks });
     });
 
     let all: KeyTranslationItem[] = [];
@@ -157,22 +135,109 @@ export class CloudTranslationsStore {
   }
 
   static async updateTranslationItem(params: {
-    key_id: string; language_id?: string; game_id?: string; language_code?: string; order_index?: number;
-    translated_text: string; status?: TranslationStatus; model_used?: string;
-  }): Promise<void> {
-    const cached = await LocalCacheStore.getAll<TranslationChunkDoc>('translation_chunks');
-    for (const chunk of cached) {
-      const it = chunk.items.find(i => i.key_id === params.key_id || i.id === params.key_id || i.key_path === params.key_id);
-      if (it) {
-        it.translated_text = params.translated_text;
-        it.status = params.status || 'manual_translated';
-        if (params.model_used) it.model_used = params.model_used;
-        it.updated_at = new Date().toISOString();
-        await LocalCacheStore.set('translation_chunks', chunk);
-        await RemoteJsonDb.upsertDoc(COLLECTION_TRANSLATIONS, chunk.chunk_id, chunk);
-        return;
+    key_id: string;
+    language_id?: string;
+    game_id?: string;
+    language_code?: string;
+    order_index?: number;
+    translated_text: string;
+    status?: TranslationStatus;
+    model_used?: string;
+  }): Promise<{ updated: boolean; langProgress?: LanguageProgress }> {
+    let targetChunk: TranslationChunkDoc | null = null;
+    let targetItem: KeyTranslationItem | null = null;
+
+    // 1. Fast O(1) Path: Target exact chunk index via order_index
+    if (typeof params.order_index === 'number' && params.game_id && params.language_code) {
+      const chunkIndex = Math.floor(params.order_index / CHUNK_SIZE);
+      const chunk = await this.getChunk(params.game_id, params.language_code, chunkIndex);
+      if (chunk && chunk.items) {
+        const it = chunk.items.find(
+          (i) => i.key_id === params.key_id || i.id === params.key_id || i.key_path === params.key_id
+        );
+        if (it) {
+          targetChunk = chunk;
+          targetItem = it;
+        }
       }
     }
+
+    // 2. Fallback: Search in-memory/IDB cached chunks if order_index is omitted
+    if (!targetChunk || !targetItem) {
+      const cached = await LocalCacheStore.getAll<TranslationChunkDoc>('translation_chunks');
+      for (const chunk of cached) {
+        if (params.game_id && chunk.game_id !== params.game_id) continue;
+        if (params.language_code && chunk.language_code !== params.language_code) continue;
+        const it = chunk.items?.find(
+          (i) => i.key_id === params.key_id || i.id === params.key_id || i.key_path === params.key_id
+        );
+        if (it) {
+          targetChunk = chunk;
+          targetItem = it;
+          break;
+        }
+      }
+    }
+
+    if (!targetChunk || !targetItem) {
+      return { updated: false };
+    }
+
+    // 3. Calculate state deltas
+    const oldStatus = targetItem.status || 'untranslated';
+    const oldHasText = Boolean(targetItem.translated_text && targetItem.translated_text.trim().length > 0);
+
+    const newStatus = params.status || (params.translated_text.trim() ? 'manual_translated' : 'untranslated');
+    const newHasText = Boolean(params.translated_text.trim().length > 0);
+
+    const deltaTranslated = (newHasText ? 1 : 0) - (oldHasText ? 1 : 0);
+    const deltaApproved = (newStatus === 'approved' ? 1 : 0) - (oldStatus === 'approved' ? 1 : 0);
+
+    // Apply mutations to the item
+    targetItem.translated_text = params.translated_text;
+    targetItem.status = newStatus;
+    if (params.model_used) targetItem.model_used = params.model_used;
+    targetItem.updated_at = new Date().toISOString();
+
+    // 4. Instant IndexedDB write (< 15ms)
+    await LocalCacheStore.set('translation_chunks', targetChunk);
+
+    // 5. O(1) Incremental Language Counter Update
+    let updatedLangProgress: LanguageProgress | undefined = undefined;
+    const gameId = targetChunk.game_id;
+    const langCode = targetChunk.language_code;
+
+    const game = await CloudGamesStore.getGame(gameId);
+    if (game && game.languages) {
+      const lang = game.languages.find(
+        (l) => l.language_code === langCode || l.language_id === params.language_id
+      );
+      if (lang) {
+        lang.translated_keys = Math.max(0, (lang.translated_keys || 0) + deltaTranslated);
+        lang.approved_keys = Math.max(0, (lang.approved_keys || 0) + deltaApproved);
+        const total = lang.total_keys || game.totalKeys || 0;
+        lang.progress_percentage = total > 0 ? Math.round((lang.translated_keys / total) * 100) : 0;
+        updatedLangProgress = { ...lang };
+        // Update local cache for game summary immediately
+        await LocalCacheStore.set('games', game);
+      }
+    }
+
+    // 6. Background Asynchronous Remote Sync (Non-blocking)
+    const chunkToSync = targetChunk;
+    const gameToSync = game;
+    (async () => {
+      try {
+        await RemoteJsonDb.upsertDoc(COLLECTION_TRANSLATIONS, chunkToSync.chunk_id, chunkToSync);
+        if (gameToSync && gameToSync.languages) {
+          await RemoteJsonDb.upsertDoc('lt_games', gameId, gameToSync);
+        }
+      } catch (err) {
+        console.warn('Background remote sync notice:', err);
+      }
+    })();
+
+    return { updated: true, langProgress: updatedLangProgress };
   }
 
   static async updateMultipleTranslationItems(
@@ -240,6 +305,35 @@ export class CloudTranslationsStore {
         translated_text: '', status: 'untranslated', updated_at: new Date().toISOString(),
       }));
       await this.saveItemsInChunks(gameId, newLang.language_code, newItems);
+      newLang.total_keys = newItems.length;
+    } else {
+      const rawTemplate = game.raw_json_template || await CloudGamesStore.loadTemplate(gameId);
+      if (rawTemplate) {
+        try {
+          const parsed = JSON.parse(rawTemplate);
+          const schema: JsonSchemaConfig | undefined = game.schema_config
+            ? (typeof game.schema_config === 'string' ? JSON.parse(game.schema_config) : game.schema_config)
+            : undefined;
+          const flattened = ClientJsonParser.flattenWithConfig(parsed, schema);
+          const newItems: KeyTranslationItem[] = flattened.map(k => ({
+            id: uuidv4(),
+            key_id: uuidv4(),
+            key_path: k.keyPath,
+            source_text: k.sourceText,
+            context_note: k.contextNote || '',
+            order_index: k.orderIndex,
+            language_id: newLang.language_id,
+            language_code: newLang.language_code,
+            translated_text: '',
+            status: 'untranslated',
+            updated_at: new Date().toISOString(),
+          }));
+          await this.saveItemsInChunks(gameId, newLang.language_code, newItems);
+          newLang.total_keys = newItems.length;
+        } catch (e) {
+          console.warn('Could not parse base template during addLanguage:', e);
+        }
+      }
     }
     await CloudGamesStore.updateGame(gameId, { languages: existingLangs });
     return newLang;

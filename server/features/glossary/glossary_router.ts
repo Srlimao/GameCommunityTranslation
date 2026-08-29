@@ -7,7 +7,7 @@ export const glossaryRouter = Router();
 glossaryRouter.get('/games/:gameId/glossary', (req: Request, res: Response) => {
   try {
     const { language } = req.query;
-    const entries = GlossaryRepository.getByGame(req.params.gameId, language as string);
+    const entries = GlossaryRepository.getByGame(req.params.gameId as string, language as string);
     res.json({ success: true, glossary: entries });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -22,7 +22,7 @@ glossaryRouter.post('/games/:gameId/glossary', (req: Request, res: Response) => 
       return res.status(400).json({ success: false, error: 'source_term and target_term are required' });
     }
     const entry = GlossaryRepository.add({
-      game_id: req.params.gameId,
+      game_id: req.params.gameId as string,
       source_term,
       target_term,
       target_language,
@@ -44,7 +44,7 @@ glossaryRouter.post('/games/:gameId/glossary/batch', (req: Request, res: Respons
     }
 
     const prepared = entries.map((item: any) => ({
-      game_id: req.params.gameId,
+      game_id: req.params.gameId as string,
       source_term: item.source_term,
       target_term: item.target_term || item.suggested_translation,
       target_language: item.target_language || '',
@@ -63,7 +63,7 @@ glossaryRouter.post('/games/:gameId/glossary/batch', (req: Request, res: Respons
 glossaryRouter.put('/games/:gameId/glossary/:id', (req: Request, res: Response) => {
   try {
     const { source_term, target_term, target_language, category, notes } = req.body;
-    const updated = GlossaryRepository.update(req.params.id, {
+    const updated = GlossaryRepository.update(req.params.id as string, {
       source_term,
       target_term,
       target_language,
@@ -82,7 +82,7 @@ glossaryRouter.put('/games/:gameId/glossary/:id', (req: Request, res: Response) 
 // DELETE glossary entry
 glossaryRouter.delete('/games/:gameId/glossary/:id', (req: Request, res: Response) => {
   try {
-    const success = GlossaryRepository.delete(req.params.id);
+    const success = GlossaryRepository.delete(req.params.id as string);
     res.json({ success });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });

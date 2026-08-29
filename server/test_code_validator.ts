@@ -78,6 +78,30 @@ function runTests() {
       order_index: 4,
       status: 'ai_translated',
     },
+    // 6. Untranslated item (empty) - should NOT inflate clean count
+    {
+      id: '6',
+      key_id: 'k6',
+      key_path: 'UNTRANSLATED_ITEM_EMPTY',
+      source_text: 'Talk to blacksmith',
+      translated_text: '',
+      language_id: 'l1',
+      language_code: 'pt-BR',
+      order_index: 5,
+      status: 'untranslated',
+    },
+    // 7. Identical to base source copy (suspect untranslated)
+    {
+      id: '7',
+      key_id: 'k7',
+      key_path: 'IDENTICAL_COPY',
+      source_text: 'Welcome to the ancient kingdom of Eldoria',
+      translated_text: 'Welcome to the ancient kingdom of Eldoria',
+      language_id: 'l1',
+      language_code: 'pt-BR',
+      order_index: 6,
+      status: 'ai_translated',
+    },
   ];
 
   const whitelist = ['<b>', '</b>', '</>', '<color=yellow>', '</color>', '<rare>', '</rare>'];
@@ -85,18 +109,24 @@ function runTests() {
   console.log('Validation Summary with Whitelist:', JSON.stringify(result.summary, null, 2));
 
   // Assertions
-  if (result.summary.totalChecked !== 5) {
-    throw new Error(`Expected 5 items checked, got ${result.summary.totalChecked}`);
+  // Total checked should be 7
+  if (result.summary.totalChecked !== 7) {
+    throw new Error(`Expected 7 items checked, got ${result.summary.totalChecked}`);
   }
-  // Clean items: RESTRUCTURED_VALID (clean with whitelist) + CLEAN_ITEM = 2 clean items
+  // Translated items: 6 items (item 6 is untranslated/empty).
+  // Issues: k1 (tab), k2 (placeholder/symbol), k4 (tag), k7 (identical).
+  // Clean translated items: RESTRUCTURED_VALID + CLEAN_ITEM = 2 clean items
   if (result.summary.cleanCount !== 2) {
-    throw new Error(`Expected 2 clean items, got ${result.summary.cleanCount}`);
+    throw new Error(`Expected 2 clean items (untranslated item 6 must not count as clean), got ${result.summary.cleanCount}`);
   }
   if (result.summary.tabMismatches < 1) {
     throw new Error(`Expected at least 1 tab mismatch, got ${result.summary.tabMismatches}`);
   }
   if (result.summary.tagMismatches !== 1) {
     throw new Error(`Expected exactly 1 tag mismatch (DIALOGUE_CORRUPTED_TAGS), got ${result.summary.tagMismatches}`);
+  }
+  if (result.summary.identicalToSourceCount !== 1) {
+    throw new Error(`Expected 1 identicalToSourceCount, got ${result.summary.identicalToSourceCount}`);
   }
 
   // Check specific fix for user case

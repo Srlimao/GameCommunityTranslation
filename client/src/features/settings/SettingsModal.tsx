@@ -83,7 +83,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         <div className="flex items-center border-b border-[#30363D] bg-[#0D1117] px-2 pt-1 gap-1">
           {[
             { id: 'translation', label: '1. Translation Engine' },
-            { id: 'qa', label: '2. QA & Inspector' },
+            { id: 'qa', label: '2. QA & Glossary Inspector' },
             { id: 'performance', label: '3. Tuning & Rules' },
           ].map((tab) => (
             <button
@@ -174,7 +174,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-[#8B949E] mb-1">
-                    Batch Concurrency
+                    Batch Queue Concurrency
                   </label>
                   <input
                     type="number"

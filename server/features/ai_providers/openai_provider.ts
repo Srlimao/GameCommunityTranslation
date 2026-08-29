@@ -178,6 +178,7 @@ export class OpenAICompatibleProvider implements AIProvider {
 
   private cleanOutput(raw: string): string {
     let clean = raw.trim();
+    clean = clean.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
     if (clean.startsWith('```') && clean.endsWith('```')) {
       const lines = clean.split('\n');
       if (lines.length >= 2) {
@@ -188,10 +189,29 @@ export class OpenAICompatibleProvider implements AIProvider {
   }
 
   private parseJsonSafe<T>(raw: string): T {
-    let clean = this.cleanOutput(raw);
-    if (clean.startsWith('```json')) {
-      clean = clean.replace(/^```json/, '').replace(/```$/, '').trim();
+    let text = raw.trim();
+    text = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+
+    if (text.startsWith('```')) {
+      text = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
     }
-    return JSON.parse(clean) as T;
+
+    try {
+      return JSON.parse(text) as T;
+    } catch {
+      const firstBrace = text.indexOf('{');
+      const lastBrace = text.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        return JSON.parse(text.substring(firstBrace, lastBrace + 1)) as T;
+      }
+
+      const firstBracket = text.indexOf('[');
+      const lastBracket = text.lastIndexOf(']');
+      if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
+        return JSON.parse(text.substring(firstBracket, lastBracket + 1)) as T;
+      }
+
+      throw new Error(`Failed to parse JSON: ${raw.slice(0, 150)}`);
+    }
   }
 }

@@ -5,7 +5,7 @@ import { Sparkles, Check, CheckCheck, Loader2, MessageSquareQuote } from 'lucide
 interface TranslationRowItemProps {
   item: KeyTranslationItem;
   gameId: string;
-  onSaveTranslation: (keyId: string, text: string, status?: TranslationStatus) => Promise<void>;
+  onSaveTranslation: (keyId: string, text: string, status?: TranslationStatus, orderIndex?: number) => Promise<void>;
   onTranslateSingle: (item: KeyTranslationItem) => Promise<string>;
 }
 
@@ -33,7 +33,7 @@ export const TranslationRowItem: React.FC<TranslationRowItemProps> = ({
     if (hasChanged) {
       setIsSaving(true);
       try {
-        await onSaveTranslation(item.key_id, translatedText, 'manual_translated');
+        await onSaveTranslation(item.key_id, translatedText, 'manual_translated', item.order_index);
         setHasChanged(false);
       } finally {
         setIsSaving(false);
@@ -44,7 +44,7 @@ export const TranslationRowItem: React.FC<TranslationRowItemProps> = ({
   const handleApprove = async () => {
     setIsSaving(true);
     try {
-      await onSaveTranslation(item.key_id, translatedText, 'approved');
+      await onSaveTranslation(item.key_id, translatedText, 'approved', item.order_index);
       setHasChanged(false);
     } finally {
       setIsSaving(false);

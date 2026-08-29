@@ -9,12 +9,12 @@ export interface LMStudioModelInfo {
 export class LMStudioClient {
   static getBaseUrl(): string {
     const settings = SettingsRepository.getSettings();
-    return settings.lm_studio_url.replace(/\/+$/, '');
+    return (settings.lm_studio_url || 'http://localhost:1234/v1').replace(/\/+$/, '');
   }
 
   static getModel(): string {
     const settings = SettingsRepository.getSettings();
-    return settings.lm_studio_model;
+    return settings.lm_studio_model || '';
   }
 
   static async testConnection(): Promise<{ success: boolean; message: string; models: string[] }> {

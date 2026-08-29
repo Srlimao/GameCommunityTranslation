@@ -83,7 +83,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
         {/* Right Header Actions */}
         <div className="flex items-center gap-2.5">
           {/* User Management Button (for Admins) */}
-          {user?.is_admin && onNavigateView && (
+          {user?.role === 'admin' && onNavigateView && (
             <button
               type="button"
               onClick={() => onNavigateView(currentView === 'users' ? 'dashboard' : 'users')}

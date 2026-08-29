@@ -10,7 +10,7 @@ export const translationsRouter = Router();
 // GET languages with completion stats
 translationsRouter.get('/games/:gameId/languages', (req: Request, res: Response) => {
   try {
-    const stats = TranslationsRepository.getLanguages(req.params.gameId);
+    const stats = TranslationsRepository.getLanguages(req.params.gameId as string);
     res.json({ success: true, languages: stats });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -24,7 +24,7 @@ translationsRouter.post('/games/:gameId/languages', (req: Request, res: Response
     if (!language_code || !language_name) {
       return res.status(400).json({ success: false, error: 'language_code and language_name are required' });
     }
-    const lang = TranslationsRepository.addLanguage(req.params.gameId, language_code, language_name);
+    const lang = TranslationsRepository.addLanguage(req.params.gameId as string, language_code, language_name);
     res.json({ success: true, language: lang });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -34,7 +34,7 @@ translationsRouter.post('/games/:gameId/languages', (req: Request, res: Response
 // DELETE language
 translationsRouter.delete('/games/:gameId/languages/:languageId', (req: Request, res: Response) => {
   try {
-    const success = TranslationsRepository.deleteLanguage(req.params.languageId);
+    const success = TranslationsRepository.deleteLanguage(req.params.languageId as string);
     res.json({ success });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -46,8 +46,8 @@ translationsRouter.get('/games/:gameId/translations/:languageCode', (req: Reques
   try {
     const { status, search } = req.query;
     const items = TranslationsRepository.getTranslations(
-      req.params.gameId,
-      req.params.languageCode,
+      req.params.gameId as string,
+      req.params.languageCode as string,
       { status: status as string, search: search as string }
     );
     res.json({ success: true, items });

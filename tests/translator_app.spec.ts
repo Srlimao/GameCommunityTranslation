@@ -1,18 +1,17 @@
 import { test, expect } from '@playwright/test';
+import { cleanupTestArtifacts } from './test_cleanup_helper.ts';
 
 test.describe('Game Community Translation E2E Tests with User System & Multi-Provider AI', () => {
+  test.beforeAll(async () => {
+    await cleanupTestArtifacts();
+  });
+
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
   });
 
   test.afterAll(async () => {
-    try {
-      const { db } = await import('../server/database/sqlite_client.ts');
-      db.prepare("DELETE FROM games WHERE name LIKE 'Aetheria Lore Hub%' OR name LIKE 'Chronicles of Solaria%' OR name LIKE 'Custom Schema Game%'").run();
-      db.prepare("DELETE FROM users WHERE username LIKE 'user_%' OR username LIKE 'testadmin_%' OR username LIKE 'localizer_%'").run();
-    } catch (e) {
-      console.warn('Test cleanup notice:', e);
-    }
+    await cleanupTestArtifacts();
   });
 
   test('1. User Authentication & Profile Management', async ({ page }) => {

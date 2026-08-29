@@ -9,23 +9,12 @@ import { StyleGuideModule } from './StyleGuideModule.tsx';
 import { ContextSynthesizerModule } from './ContextSynthesizerModule.tsx';
 import { LoreAuditLogModule } from './LoreAuditLogModule.tsx';
 import { AdvancedGlossaryBoardModule } from './AdvancedGlossaryBoardModule.tsx';
-import {
-  Sparkles,
-  Save,
-  CheckCircle2,
-  Sliders,
-  UserCheck,
-  Terminal,
-  Grid,
-  FileText,
-  Layers,
-  BookOpen
-} from 'lucide-react';
+import { ContextWorkspaceHeader, ContextPaneType } from './ContextWorkspaceHeader.tsx';
 
 interface ContextHubWorkspaceProps {
   game: GameSummary;
   onGameUpdated: (updated: GameSummary) => void;
-  initialPane?: 'ecosystem' | 'multi' | 'hub' | 'characters' | 'style' | 'synthesizer' | 'glossary';
+  initialPane?: ContextPaneType;
 }
 
 export const ContextHubWorkspace: React.FC<ContextHubWorkspaceProps> = ({
@@ -39,7 +28,7 @@ export const ContextHubWorkspace: React.FC<ContextHubWorkspaceProps> = ({
     ContextSerializer.parse(game.context_prompt)
   );
 
-  const [activePane, setActivePane] = useState<'ecosystem' | 'multi' | 'hub' | 'characters' | 'style' | 'synthesizer' | 'glossary'>(initialPane);
+  const [activePane, setActivePane] = useState<ContextPaneType>(initialPane);
   const [showRawNotes, setShowRawNotes] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -70,130 +59,21 @@ export const ContextHubWorkspace: React.FC<ContextHubWorkspaceProps> = ({
 
   return (
     <div className="space-y-3 font-mono">
-      {/* Console Top Toolbar */}
-      <div className="bg-[#161B22] border border-[#30363D] p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-3">
-          <div className="bg-[#10141D] border border-[#30363D] px-2.5 py-1 flex items-center gap-2 text-[#E6EDF3]">
-            <span className="text-[10px] text-[#8B949E] uppercase">PROJECT:</span>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="bg-transparent text-xs font-bold text-[#E6EDF3] outline-none border-b border-transparent focus:border-[#5865F2]"
-            />
-          </div>
-          <div className="bg-[#10141D] border border-[#30363D] px-2.5 py-1 flex items-center gap-2 text-[#E6EDF3]">
-            <span className="text-[10px] text-[#8B949E] uppercase">BASE LANG:</span>
-            <input
-              type="text"
-              value={baseLanguage}
-              onChange={(e) => setBaseLanguage(e.target.value)}
-              className="bg-transparent text-xs text-[#56D364] font-bold w-16 outline-none border-b border-transparent focus:border-[#5865F2]"
-            />
-          </div>
-        </div>
-
-        {/* View Mode Switcher */}
-        <div className="flex items-center border border-[#30363D] bg-[#0D1117] overflow-x-auto">
-          <button
-            type="button"
-            onClick={() => setActivePane('ecosystem')}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold transition-colors ${
-              activePane === 'ecosystem' ? 'bg-[#5865F2] text-white' : 'text-[#8B949E] hover:text-[#E6EDF3]'
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>ECOSYSTEM (4-COL)</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActivePane('multi')}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold transition-colors ${
-              activePane === 'multi' ? 'bg-[#5865F2] text-white' : 'text-[#8B949E] hover:text-[#E6EDF3]'
-            }`}
-          >
-            <Grid className="w-3.5 h-3.5" />
-            <span>MULTI-PANE</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActivePane('hub')}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold transition-colors ${
-              activePane === 'hub' ? 'bg-[#5865F2] text-white' : 'text-[#8B949E] hover:text-[#E6EDF3]'
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>LORE ({contextData.loreElements.length})</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActivePane('characters')}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold transition-colors ${
-              activePane === 'characters' ? 'bg-[#5865F2] text-white' : 'text-[#8B949E] hover:text-[#E6EDF3]'
-            }`}
-          >
-            <UserCheck className="w-3.5 h-3.5" />
-            <span>CHARACTERS ({contextData.characters.length})</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActivePane('glossary')}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold transition-colors ${
-              activePane === 'glossary' ? 'bg-[#5865F2] text-white' : 'text-[#8B949E] hover:text-[#E6EDF3]'
-            }`}
-          >
-            <BookOpen className="w-3.5 h-3.5" />
-            <span>GLOSSARY</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActivePane('style')}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold transition-colors ${
-              activePane === 'style' ? 'bg-[#5865F2] text-white' : 'text-[#8B949E] hover:text-[#E6EDF3]'
-            }`}
-          >
-            <Sliders className="w-3.5 h-3.5" />
-            <span>STYLE GUIDE</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActivePane('synthesizer')}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold transition-colors ${
-              activePane === 'synthesizer' ? 'bg-[#5865F2] text-white' : 'text-[#8B949E] hover:text-[#E6EDF3]'
-            }`}
-          >
-            <Terminal className="w-3.5 h-3.5" />
-            <span>SYNTHESIZER</span>
-          </button>
-        </div>
-
-        {/* Actions */}
-        <div className="flex items-center gap-2">
-          {savedSuccess && (
-            <div className="flex items-center gap-1 text-[11px] text-[#3FB950] bg-[#3FB950]/10 border border-[#3FB950] px-2 py-1">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>SAVED</span>
-            </div>
-          )}
-          <button
-            type="button"
-            onClick={() => setShowRawNotes(!showRawNotes)}
-            className="p-1.5 border border-[#30363D] bg-[#0D1117] text-[#8B949E] hover:text-[#E6EDF3]"
-            title="Toggle Raw Notes"
-          >
-            <FileText className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSave()}
-            disabled={isSaving}
-            className="flex items-center gap-1.5 px-4 py-1.5 bg-[#5865F2] hover:bg-[#4C6EF5] text-white text-xs font-bold border border-[#5865F2] transition-colors disabled:opacity-50"
-          >
-            <Save className="w-3.5 h-3.5" />
-            <span>{isSaving ? 'SAVING...' : 'COMMIT CONTEXT'}</span>
-          </button>
-        </div>
-      </div>
+      <ContextWorkspaceHeader
+        name={name}
+        onNameChange={setName}
+        baseLanguage={baseLanguage}
+        onBaseLanguageChange={setBaseLanguage}
+        activePane={activePane}
+        onPaneChange={setActivePane}
+        loreCount={contextData.loreElements.length}
+        characterCount={contextData.characters.length}
+        showRawNotes={showRawNotes}
+        onToggleRawNotes={() => setShowRawNotes(!showRawNotes)}
+        isSaving={isSaving}
+        savedSuccess={savedSuccess}
+        onSave={handleSave}
+      />
 
       {error && (
         <div className="p-2.5 bg-[#E5534B]/10 border border-[#E5534B] text-[#F85149] text-xs font-mono">

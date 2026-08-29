@@ -1,11 +1,11 @@
 import React from 'react';
-import { TargetLanguage } from '../../types/client_types.ts';
+import { LanguageProgress } from '../../types/client_types.ts';
 import { Sparkles, Loader2, RotateCcw } from 'lucide-react';
 
 interface InspectorHeaderProps {
   selectedLangCode: string;
   onSelectLangCode: (code: string) => void;
-  languages?: TargetLanguage[];
+  languages?: LanguageProgress[];
   isAnalyzing: boolean;
   onRunAiInspector: () => void;
   hasStoredData: boolean;
@@ -40,7 +40,7 @@ export const InspectorHeader: React.FC<InspectorHeaderProps> = ({
           className="bg-[#0D1117] border border-[#30363D] px-2.5 py-1.5 text-xs text-[#E6EDF3] outline-none focus:border-[#5865F2]"
         >
           {languages?.map((l) => (
-            <option key={l.language_id || l.id} value={l.language_code}>
+            <option key={l.language_id || l.language_code} value={l.language_code}>
               {l.language_name} ({l.language_code})
             </option>
           ))}

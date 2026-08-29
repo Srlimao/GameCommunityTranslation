@@ -6,7 +6,7 @@ interface LanguageSelectorModalProps {
   isOpen: boolean;
   gameId: string;
   onClose: () => void;
-  onLanguageAdded: () => void;
+  onLanguageAdded: (newCode?: string) => void;
 }
 
 const PRESET_LANGUAGES = [
@@ -62,7 +62,7 @@ export const LanguageSelectorModal: React.FC<LanguageSelectorModalProps> = ({
 
     try {
       await ApiClient.addLanguage(gameId, code.trim(), name.trim());
-      onLanguageAdded();
+      onLanguageAdded(code.trim());
       onClose();
     } catch (err: any) {
       setError(err.message || 'Failed to add language');

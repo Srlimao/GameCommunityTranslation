@@ -254,7 +254,7 @@ export const JsonImportModal: React.FC<JsonImportModalProps> = ({
                 className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold bg-[#5865F2] hover:bg-[#4C6EF5] text-white border border-[#5865F2] transition-colors disabled:opacity-50"
               >
                 {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-                <span>Next: Mapping</span>
+                <span>Next: Configure Structure & Mapping</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             ) : (
@@ -265,7 +265,7 @@ export const JsonImportModal: React.FC<JsonImportModalProps> = ({
                 className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold bg-[#5865F2] hover:bg-[#4C6EF5] text-white border border-[#5865F2] transition-colors disabled:opacity-50"
               >
                 {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-                <span>Confirm & Import</span>
+                <span>Confirm & Import Keys</span>
               </button>
             )}
           </div>

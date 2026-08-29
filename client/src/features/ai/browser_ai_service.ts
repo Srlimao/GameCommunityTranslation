@@ -146,17 +146,44 @@ export class BrowserAIService {
     },
     settings: SystemSettings
   ): Promise<{ fixed_translation: string; explanation?: string }> {
-    const whitelistInfo = params.whitelistTags?.length ? `Allowed Markup Tags Whitelist: ${params.whitelistTags.join(', ')}` : '';
-    const system = `You are a Lead Game Localization Engineer specializing in code, tag, tab, bracket, placeholder, and symbol parity repair.
-Your task is to fix translated game text with code/symbol errors.
+    const whitelistInfo = params.whitelistTags?.length ? `Allowed Markup Tags: ${params.whitelistTags.join(', ')}` : '';
+    const targetLang = params.targetLanguage || 'the target language';
+    const isUntranslated = params.issue.issue_type === 'identical_to_source';
 
-CRITICAL RULES:
-1. Maintain the natural target language localization and tone.
-2. Fix all syntax, markup tags (<tag>...</tag>, </>), variables ({player_name}), placeholders (%s), brackets [], tabs (\\t), and newlines (\\n) so they match the source text structure.
-3. Allowed tags: ${params.whitelistTags?.join(', ') || 'Preserve source tags exactly'}.
-4. Return a JSON object with: {"fixed_translation": string, "explanation": string}.`;
+    const system = `You are an expert game localization and code/tag parity repair engine.
+Your task is to fix localization issues and ensure tag/symbol parity between source and target text.
 
-    const prompt = `Game: ${params.gameName}\n${params.contextPrompt ? `Lore/Context:\n${params.contextPrompt}\n` : ''}Target Language: ${params.targetLanguage}\n${whitelistInfo}\n\nItem with issue to repair:\nKey: ${params.issue.key_path}\nSource Text: "${params.issue.source_text}"\nCurrent Translation: "${params.issue.translated_text}"\nIssue Detected: ${params.issue.issue_type} - ${params.issue.message}`;
+MANDATORY RULES:
+1. TARGET LANGUAGE: The output MUST be in ${targetLang}.
+${isUntranslated
+  ? `2. FULL TRANSLATION: The current translation is untranslated (identical to base). Translate the Source Text faithfully into ${targetLang} while preserving all tags (<tag>...</tag>, </>), placeholders ({0}, %s), brackets [], tabs (\\t), and newlines (\\n).`
+  : `2. INSERT MISSING TAGS: Find every tag (e.g. <tag>...</>, <tag>...</tag>), placeholder ({0}, %s), tab (\\t), bracket, or newline in the [Source Text], and wrap or place it around the corresponding translated words in the [Current Translation].
+3. KEEP TRANSLATION: Do not alter the translated words themselves, only insert missing tags/symbols.`
+}
+${whitelistInfo ? `4. ${whitelistInfo}` : ''}
+5. FORMAT: Return ONLY valid JSON: {"fixed_translation": "..."}
+
+EXAMPLE:
+Source: "<NPCName>Emma</> and <NPCName>Dippa</>'s wedding photo."
+Current: "Foto do casamento de Emma e Dippa."
+Fixed Output: {"fixed_translation": "Foto do casamento de <NPCName>Emma</> e <NPCName>Dippa</>."}`;
+
+    const prompt = `### TARGET LANGUAGE:
+${targetLang}
+
+### DETECTED ERROR TO FIX:
+${params.issue.message}
+
+### SOURCE TEXT:
+${params.issue.source_text}
+
+### CURRENT TRANSLATION:
+${params.issue.translated_text}
+
+${isUntranslated
+  ? `Translate the text into ${targetLang} while preserving all tags, placeholders, and formatting from the Source Text.`
+  : 'Apply the tags and symbols from the Source Text to the Current Translation.'}
+Return valid JSON with key "fixed_translation":`;
 
     const res = await this.generateStructuredJson<{ fixed_translation?: string; explanation?: string }>(prompt, system, settings);
     return {
@@ -177,21 +204,30 @@ CRITICAL RULES:
   ): Promise<Array<{ key_path: string; fixed_translation: string; explanation?: string }>> {
     if (params.issues.length === 0) return [];
 
+    const targetLang = params.targetLanguage || 'the target language';
     const itemsText = params.issues.map((iss, idx) =>
-      `[Item ${idx + 1}]\nKey: ${iss.key_path}\nSource Text: "${iss.source_text}"\nCurrent Translation: "${iss.translated_text}"\nIssue Detected: ${iss.issue_type} - ${iss.message}`
+      `[Item ${idx + 1}]\nKey: ${iss.key_path}\nError: ${iss.message}\nSource Text: "${iss.source_text}"\nCurrent Translation (${targetLang}): "${iss.translated_text}"`
     ).join('\n\n');
 
-    const whitelistInfo = params.whitelistTags?.length ? `Allowed Markup Tags Whitelist: ${params.whitelistTags.join(', ')}` : '';
-    const system = `You are a Lead Game Localization Engineer specializing in code, tag, tab, bracket, and symbol parity repair.
-Your task is to fix translated game text with syntax/parity errors.
+    const whitelistInfo = params.whitelistTags?.length ? `Allowed Markup Tags: ${params.whitelistTags.join(', ')}` : '';
+    const system = `You are an expert game localization and code/tag parity repair engine.
+Your task is to fix localization issues and ensure tag/symbol parity in translated texts.
 
-CRITICAL RULES:
-1. Maintain the target language localization and tone naturally.
-2. Fix all syntax, markup tags, variables, bracket parity, tab characters (\\t), and placeholders (%s, {name}) to match the source text structure.
-3. Allowed tags: ${params.whitelistTags?.join(', ') || 'Preserve source tags exactly'}.
-4. Return a JSON object with key "fixes", where each element is {"key_path": string, "fixed_translation": string, "explanation": string}.`;
+MANDATORY RULES:
+1. TARGET LANGUAGE: All outputs MUST be in ${targetLang}.
+2. If an item is flagged as untranslated (identical to base), translate it faithfully into ${targetLang} while keeping all tags (<tag>...</tag>, </>), placeholders, brackets, tabs, and newlines intact.
+3. If an item has tag/symbol errors, preserve the translated words and insert/wrap the missing tags/symbols.
+${whitelistInfo ? `4. ${whitelistInfo}` : ''}
+5. FORMAT: Return ONLY valid JSON: {"fixes": [{"key_path": string, "fixed_translation": string}]}`;
 
-    const prompt = `Game: ${params.gameName}\n${params.contextPrompt ? `Lore/Context:\n${params.contextPrompt}\n` : ''}Target Language: ${params.targetLanguage}\n${whitelistInfo}\n\nItems with syntax/parity issues to repair:\n${itemsText}`;
+    const prompt = `### TARGET LANGUAGE:
+${targetLang}
+
+Repair the issues in the following items to match their source texts. Ensure all fixed strings remain in ${targetLang}:
+
+${itemsText}
+
+Output valid JSON with key "fixes":`;
 
     const res = await this.generateStructuredJson<{ fixes?: Array<{ key_path: string; fixed_translation: string; explanation?: string }> }>(prompt, system, settings);
     return res.fixes || [];

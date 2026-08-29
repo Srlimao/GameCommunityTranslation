@@ -3,7 +3,7 @@ import { SettingsRepository } from '../settings/settings_repository.ts';
 export class GeminiClient {
   static getApiKey(): string {
     const settings = SettingsRepository.getSettings();
-    return settings.gemini_api_key;
+    return settings.gemini_api_key || '';
   }
 
   static getModel(): string {

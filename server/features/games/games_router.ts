@@ -39,7 +39,7 @@ gamesRouter.get('/', (req: Request, res: Response) => {
 // GET single game
 gamesRouter.get('/:id', (req: Request, res: Response) => {
   try {
-    const game = GamesRepository.getById(req.params.id);
+    const game = GamesRepository.getById(req.params.id as string);
     if (!game) {
       return res.status(404).json({ success: false, error: 'Game not found' });
     }
@@ -67,7 +67,7 @@ gamesRouter.post('/', (req: Request, res: Response) => {
 gamesRouter.put('/:id', (req: Request, res: Response) => {
   try {
     const { name, description, context_prompt, base_language, whitelist_tags } = req.body;
-    const updated = GamesRepository.update(req.params.id, { name, description, context_prompt, base_language, whitelist_tags });
+    const updated = GamesRepository.update(req.params.id as string, { name, description, context_prompt, base_language, whitelist_tags });
     if (!updated) {
       return res.status(404).json({ success: false, error: 'Game not found' });
     }
@@ -80,11 +80,11 @@ gamesRouter.put('/:id', (req: Request, res: Response) => {
 // POST discover & update tags from base keys
 gamesRouter.post('/:id/discover-tags', (req: Request, res: Response) => {
   try {
-    const game = GamesRepository.getById(req.params.id);
+    const game = GamesRepository.getById(req.params.id as string);
     if (!game) {
       return res.status(404).json({ success: false, error: 'Game not found' });
     }
-    const tags = GamesRepository.discoverGameTags(req.params.id);
+    const tags = GamesRepository.discoverGameTags(req.params.id as string);
     res.json({
       success: true,
       tags,
@@ -102,7 +102,7 @@ gamesRouter.put('/:id/whitelist-tags', (req: Request, res: Response) => {
     if (!Array.isArray(tags)) {
       return res.status(400).json({ success: false, error: 'tags must be an array of strings' });
     }
-    const updatedTags = GamesRepository.updateWhitelistTags(req.params.id, tags);
+    const updatedTags = GamesRepository.updateWhitelistTags(req.params.id as string, tags);
     res.json({ success: true, tags: updatedTags });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -112,7 +112,7 @@ gamesRouter.put('/:id/whitelist-tags', (req: Request, res: Response) => {
 // DELETE game
 gamesRouter.delete('/:id', (req: Request, res: Response) => {
   try {
-    const success = GamesRepository.delete(req.params.id);
+    const success = GamesRepository.delete(req.params.id as string);
     res.json({ success });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -170,7 +170,7 @@ gamesRouter.post('/:id/import-json', (req: Request, res: Response) => {
 
     const flattened = JsonStructureParser.flattenWithConfig(parsed, schemaConfig);
     const schemaStr = schemaConfig ? JSON.stringify(schemaConfig) : '';
-    const count = GamesRepository.importBaseKeys(req.params.id, flattened, rawStr, schemaStr);
+    const count = GamesRepository.importBaseKeys(req.params.id as string, flattened, rawStr, schemaStr);
 
     res.json({
       success: true,
@@ -186,12 +186,12 @@ gamesRouter.post('/:id/import-json', (req: Request, res: Response) => {
 gamesRouter.get('/:id/export-json/:languageCode', (req: Request, res: Response) => {
   try {
     const { id, languageCode } = req.params;
-    const game = GamesRepository.getById(id);
+    const game = GamesRepository.getById(id as string);
     if (!game) {
       return res.status(404).json({ success: false, error: 'Game not found' });
     }
 
-    const flatMap = TranslationsRepository.getExportMap(id, languageCode);
+    const flatMap = TranslationsRepository.getExportMap(id as string, languageCode as string);
     const exportedJson = JsonStructureParser.unflattenWithTemplate(
       flatMap,
       game.raw_json_template,

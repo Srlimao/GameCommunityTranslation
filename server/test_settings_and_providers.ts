@@ -13,57 +13,64 @@ async function runTest() {
   console.log('   - QA Provider:', initial.qa_provider);
   console.log('   - Batch Concurrency:', initial.batch_concurrency);
 
-  // 2. Update settings
-  console.log('\n2. Updating Settings to multi-provider test values...');
-  const updated = SettingsRepository.updateSettings({
-    translation_provider: 'openai_compatible',
-    translation_base_url: 'https://api.groq.com/openai/v1',
-    translation_model: 'llama-3.3-70b-versatile',
-    translation_temperature: 0.15,
-    qa_provider: 'gemini',
-    qa_model: 'gemini-2.5-flash',
-    batch_concurrency: 4,
-    custom_system_prompt: 'Test Global Constraint: Preserve RPG tone.',
-  });
+  try {
+    // 2. Update settings
+    console.log('\n2. Updating Settings to multi-provider test values...');
+    const updated = SettingsRepository.updateSettings({
+      translation_provider: 'openai_compatible',
+      translation_base_url: 'https://api.groq.com/openai/v1',
+      translation_model: 'llama-3.3-70b-versatile',
+      translation_temperature: 0.15,
+      qa_provider: 'gemini',
+      qa_model: 'gemini-2.5-flash',
+      batch_concurrency: 4,
+      custom_system_prompt: 'Test Global Constraint: Preserve RPG tone.',
+    });
 
-  console.log('   - Updated Translation Model:', updated.translation_model);
-  console.log('   - Updated Translation Base URL:', updated.translation_base_url);
-  console.log('   - Updated Batch Concurrency:', updated.batch_concurrency);
-  console.log('   - Updated System Prompt:', updated.custom_system_prompt);
+    console.log('   - Updated Translation Model:', updated.translation_model);
+    console.log('   - Updated Translation Base URL:', updated.translation_base_url);
+    console.log('   - Updated Batch Concurrency:', updated.batch_concurrency);
+    console.log('   - Updated System Prompt:', updated.custom_system_prompt);
 
-  // 3. Verify persistence
-  const reloaded = SettingsRepository.getSettings();
-  if (
-    reloaded.translation_model !== 'llama-3.3-70b-versatile' ||
-    reloaded.batch_concurrency !== 4 ||
-    reloaded.translation_temperature !== 0.15
-  ) {
-    throw new Error('Settings persistence verification failed!');
+    // 3. Verify persistence
+    const reloaded = SettingsRepository.getSettings();
+    if (
+      reloaded.translation_model !== 'llama-3.3-70b-versatile' ||
+      reloaded.batch_concurrency !== 4 ||
+      reloaded.translation_temperature !== 0.15
+    ) {
+      throw new Error('Settings persistence verification failed!');
+    }
+    console.log('✅ Settings persisted and reloaded successfully in SQLite!');
+
+    // 4. Test provider instances
+    console.log('\n3. Testing Provider Dispatcher...');
+    const geminiProv = AIService.getProviderInstance('gemini');
+    const openaiProv = AIService.getProviderInstance('openai_compatible');
+    const anthropicProv = AIService.getProviderInstance('anthropic');
+
+    if (!geminiProv || !openaiProv || !anthropicProv) {
+      throw new Error('Failed to instantiate AI providers!');
+    }
+    console.log('✅ All AI Providers (Gemini, OpenAI-compatible, Anthropic) initialized correctly.');
+
+    // 5. Test connection error handling when key is missing (safe check)
+    console.log('\n4. Testing Provider Connection Validation (Missing credentials safety check)...');
+    const testGemini = await AIService.testProvider('gemini', { apiKey: '' });
+    console.log('   - Gemini without key result:', testGemini.success === false ? 'Correctly rejected' : 'Unexpected');
+    if (testGemini.success !== false) throw new Error('Expected missing API key to fail gracefully');
+
+    const testAnthropic = await AIService.testProvider('anthropic', { apiKey: '' });
+    console.log('   - Anthropic without key result:', testAnthropic.success === false ? 'Correctly rejected' : 'Unexpected');
+    if (testAnthropic.success !== false) throw new Error('Expected missing API key to fail gracefully');
+
+    console.log('\n🎉 ALL AI SETTINGS & PROVIDER TESTS PASSED!');
+  } finally {
+    if (initial) {
+      console.log('🧹 Restoring initial settings in SQLite...');
+      SettingsRepository.updateSettings(initial);
+    }
   }
-  console.log('✅ Settings persisted and reloaded successfully in SQLite!');
-
-  // 4. Test provider instances
-  console.log('\n3. Testing Provider Dispatcher...');
-  const geminiProv = AIService.getProviderInstance('gemini');
-  const openaiProv = AIService.getProviderInstance('openai_compatible');
-  const anthropicProv = AIService.getProviderInstance('anthropic');
-
-  if (!geminiProv || !openaiProv || !anthropicProv) {
-    throw new Error('Failed to instantiate AI providers!');
-  }
-  console.log('✅ All AI Providers (Gemini, OpenAI-compatible, Anthropic) initialized correctly.');
-
-  // 5. Test connection error handling when key is missing (safe check)
-  console.log('\n4. Testing Provider Connection Validation (Missing credentials safety check)...');
-  const testGemini = await AIService.testProvider('gemini', { apiKey: '' });
-  console.log('   - Gemini without key result:', testGemini.success === false ? 'Correctly rejected' : 'Unexpected');
-  if (testGemini.success !== false) throw new Error('Expected missing API key to fail gracefully');
-
-  const testAnthropic = await AIService.testProvider('anthropic', { apiKey: '' });
-  console.log('   - Anthropic without key result:', testAnthropic.success === false ? 'Correctly rejected' : 'Unexpected');
-  if (testAnthropic.success !== false) throw new Error('Expected missing API key to fail gracefully');
-
-  console.log('\n🎉 ALL AI SETTINGS & PROVIDER TESTS PASSED!');
 }
 
 runTest().catch((err) => {

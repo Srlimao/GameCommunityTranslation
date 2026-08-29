@@ -128,12 +128,18 @@ async function runVerification() {
     console.log(`   - [${i.issue_type}] in ${i.key_path}: ${i.message}`);
   });
 
-  // 7. Test Export JSON reconstruction
-  const exportMap = TranslationsRepository.getExportMap(game.id, 'es-ES');
-  const reconstructed = JsonStructureParser.unflatten(exportMap);
-  console.log('✅ Export reconstructed sample:', JSON.stringify(reconstructed.ui, null, 2));
+    // 7. Test Export JSON reconstruction
+    const exportMap = TranslationsRepository.getExportMap(game.id, 'es-ES');
+    const reconstructed = JsonStructureParser.unflatten(exportMap);
+    console.log('✅ Export reconstructed sample:', JSON.stringify(reconstructed.ui, null, 2));
 
-  console.log('🎉 ALL VERIFICATION TESTS PASSED SUCCESSFULLY!');
+    console.log('🎉 ALL VERIFICATION TESTS PASSED SUCCESSFULLY!');
+  } finally {
+    if (game?.id) {
+      console.log('🧹 Cleaning up test game:', game.id);
+      GamesRepository.delete(game.id);
+    }
+  }
 }
 
 runVerification().catch(err => {

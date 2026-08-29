@@ -95,7 +95,7 @@ authRouter.put('/users/:id/role', requireRole(['admin']), (req: AuthenticatedReq
     if (!role || !['admin', 'translator', 'viewer'].includes(role)) {
       return res.status(400).json({ success: false, error: 'Invalid role' });
     }
-    const updated = AuthRepository.updateUserRole(req.params.id, role);
+    const updated = AuthRepository.updateUserRole(req.params.id as string, role);
     res.json({ success: true, user: updated });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -107,7 +107,7 @@ authRouter.delete('/users/:id', requireRole(['admin']), (req: AuthenticatedReque
     if (req.user?.id === req.params.id) {
       return res.status(400).json({ success: false, error: 'Cannot delete your own admin account' });
     }
-    const success = AuthRepository.deleteUser(req.params.id);
+    const success = AuthRepository.deleteUser(req.params.id as string);
     res.json({ success });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });

@@ -107,9 +107,9 @@ export class JsonSchemaDetector {
 
       // Check if records share common schema field names (like record_map: { "quest1": { "speaker": "...", "text": "..." } })
       let isUniformRecordMap = false;
-      if (entries.length >= 2) {
-        const sample0Keys = Object.keys(entries[0][1]);
-        const sample1Keys = Object.keys(entries[1][1]);
+      if (entries.length >= 2 && entries[0][1] && typeof entries[0][1] === 'object' && entries[1][1] && typeof entries[1][1] === 'object') {
+        const sample0Keys = Object.keys(entries[0][1] as object);
+        const sample1Keys = Object.keys(entries[1][1] as object);
         const commonKeys = sample0Keys.filter(k => sample1Keys.includes(k));
         // If keys are identical or >50% overlap and field count is small (<15), it's a record map with fixed attributes
         if (commonKeys.length > 0 && (commonKeys.length / Math.max(sample0Keys.length, sample1Keys.length)) >= 0.5 && sample0Keys.length < 15) {

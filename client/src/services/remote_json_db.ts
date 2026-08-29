@@ -54,17 +54,22 @@ export class RemoteJsonDb {
   }
 
   private static getStoredConfig(): RemoteDbConfig {
+    const defaultKey = getEnv('VITE_GCP_DB_API_KEY') || getEnv('GCP_API_KEY') || DEFAULT_REMOTE_DB_CONFIG.apiKey;
+    const defaultUrl = getEnv('VITE_GCP_DB_BASE_URL') || getEnv('GCP_DB_BASE_URL') || DEFAULT_REMOTE_DB_CONFIG.baseUrl;
+
     try {
-      const saved = localStorage.getItem(STORAGE_KEY_CONFIG);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return {
-          baseUrl: parsed.baseUrl?.trim() || DEFAULT_REMOTE_DB_CONFIG.baseUrl,
-          apiKey: parsed.apiKey?.trim() || DEFAULT_REMOTE_DB_CONFIG.apiKey,
-        };
+      if (typeof localStorage !== 'undefined') {
+        const saved = localStorage.getItem(STORAGE_KEY_CONFIG);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          return {
+            baseUrl: parsed.baseUrl?.trim() || defaultUrl,
+            apiKey: parsed.apiKey?.trim() || defaultKey,
+          };
+        }
       }
     } catch {}
-    return { ...DEFAULT_REMOTE_DB_CONFIG };
+    return { baseUrl: defaultUrl, apiKey: defaultKey };
   }
 
   static setConfig(config: Partial<RemoteDbConfig>): void {

@@ -9,7 +9,7 @@ interface TranslationTableProps {
   gameId: string;
   languageCode: string;
   totalKeys?: number;
-  onSaveTranslation: (keyId: string, text: string, status?: TranslationStatus) => Promise<void>;
+  onSaveTranslation: (keyId: string, text: string, status?: TranslationStatus, orderIndex?: number) => Promise<void>;
   onTranslateSingle: (item: KeyTranslationItem) => Promise<string>;
 }
 
@@ -61,11 +61,13 @@ export const TranslationTable: React.FC<TranslationTableProps> = ({
     fetchPage();
   }, [fetchPage]);
 
-  const handleSave = async (keyId: string, text: string, status?: TranslationStatus) => {
-    await onSaveTranslation(keyId, text, status);
+  const handleSave = async (keyId: string, text: string, status?: TranslationStatus, orderIndex?: number) => {
+    const finalStatus = status || (text.trim() ? 'manual_translated' : 'untranslated');
+    // Instant optimistic update of visible page items (<1ms)
     setPageItems((prev) =>
-      prev.map((it) => (it.key_id === keyId ? { ...it, translated_text: text, status: status || it.status } : it))
+      prev.map((it) => (it.key_id === keyId ? { ...it, translated_text: text, status: finalStatus } : it))
     );
+    await onSaveTranslation(keyId, text, finalStatus, orderIndex);
   };
 
   const handleSingle = async (item: KeyTranslationItem) => {

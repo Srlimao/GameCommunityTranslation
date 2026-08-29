@@ -43,12 +43,12 @@ export const AdvancedGlossaryBoardModule: React.FC<AdvancedGlossaryBoardModulePr
     e.preventDefault();
     if (!termEn.trim()) return;
     try {
-      await ApiClient.createGlossaryEntry(game.id, {
-        term_en: termEn.trim(),
-        target_lang: game.languages?.[0]?.language_code || 'all',
-        term_translated: termTarget.trim() || undefined,
-        definition: definition.trim() || undefined,
-        case_sensitive: caseSensitive,
+      await ApiClient.addGlossaryEntry(game.id, {
+        source_term: termEn.trim(),
+        target_term: termTarget.trim() || termEn.trim(),
+        target_language: game.languages?.[0]?.language_code || '',
+        category: 'General',
+        notes: definition.trim() || undefined,
       });
       setTermEn('');
       setTermTarget('');
@@ -70,9 +70,9 @@ export const AdvancedGlossaryBoardModule: React.FC<AdvancedGlossaryBoardModulePr
   };
 
   const filtered = entries.filter((e) =>
-    e.term_en.toLowerCase().includes(search.toLowerCase()) ||
-    (e.term_translated && e.term_translated.toLowerCase().includes(search.toLowerCase())) ||
-    (e.definition && e.definition.toLowerCase().includes(search.toLowerCase()))
+    e.source_term.toLowerCase().includes(search.toLowerCase()) ||
+    (e.target_term && e.target_term.toLowerCase().includes(search.toLowerCase())) ||
+    (e.notes && e.notes.toLowerCase().includes(search.toLowerCase()))
   );
 
   return (
@@ -177,9 +177,9 @@ export const AdvancedGlossaryBoardModule: React.FC<AdvancedGlossaryBoardModulePr
             ) : (
               filtered.map((item, idx) => (
                 <tr key={item.id} className="hover:bg-[#161B22]">
-                  <td className="p-1.5 font-bold text-[#5865F2] text-[11px]">{item.term_en}</td>
-                  <td className="p-1.5 text-[#E6EDF3] text-[11px]">{item.term_translated || '-'}</td>
-                  <td className="p-1.5 text-[#8B949E] text-[10px] max-w-[120px] truncate">{item.definition || '-'}</td>
+                  <td className="p-1.5 font-bold text-[#5865F2] text-[11px]">{item.source_term}</td>
+                  <td className="p-1.5 text-[#E6EDF3] text-[11px]">{item.target_term || '-'}</td>
+                  <td className="p-1.5 text-[#8B949E] text-[10px] max-w-[120px] truncate">{item.notes || '-'}</td>
                   <td className="p-1.5 text-[#3FB950] text-[9px] font-bold">G1.{idx + 1}</td>
                   <td className="p-1.5 text-right">
                     <button

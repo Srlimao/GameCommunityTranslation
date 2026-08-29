@@ -10,6 +10,7 @@
     "build": "vite build",
     "start": "tsx server/server.ts",
     "test": "playwright test",
+    "test:unit": "tsx --test tests/**/*.unit.spec.ts",
     "set-admin": "tsx server/scripts/set_admin.ts"
   },
   "keywords": [

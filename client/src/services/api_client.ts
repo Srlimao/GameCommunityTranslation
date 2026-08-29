@@ -22,27 +22,17 @@ import { ClientJsonParser } from '../features/games/utils/client_json_parser.ts'
 
 export const ApiClient = {
   // Games
-  async getGames(): Promise<GameSummary[]> {
-    return await CloudGamesStore.getAllGames();
-  },
-
+  async getGames(): Promise<GameSummary[]> { return await CloudGamesStore.getAllGames(); },
   async getGame(id: string): Promise<GameSummary> {
     const game = await CloudGamesStore.getGame(id);
     if (!game) throw new Error('Game not found');
     return game;
   },
-
   async createGame(game: { name: string; description?: string; context_prompt?: string; base_language?: string }): Promise<GameSummary> {
     return await CloudGamesStore.createGame(game);
   },
-
-  async updateGame(id: string, partial: Partial<GameSummary>): Promise<GameSummary> {
-    return await CloudGamesStore.updateGame(id, partial);
-  },
-
-  async deleteGame(id: string): Promise<boolean> {
-    return await CloudGamesStore.deleteGame(id);
-  },
+  async updateGame(id: string, partial: Partial<GameSummary>): Promise<GameSummary> { return await CloudGamesStore.updateGame(id, partial); },
+  async deleteGame(id: string): Promise<boolean> { return await CloudGamesStore.deleteGame(id); },
 
   async discoverGameTags(id: string): Promise<{ tags: string[]; message: string }> {
     const game = await this.getGame(id);
@@ -70,7 +60,7 @@ export const ApiClient = {
     const count = await CloudTranslationsStore.importBaseKeys(
       gameId, ClientJsonParser.flattenWithConfig(parsed, schemaConfig), JSON.stringify(parsed), schemaConfig ? JSON.stringify(schemaConfig) : undefined, onProgress
     );
-    return { importedCount: count, message: `Successfully imported ${count} strings.` };
+    return { importedCount: count, message: `Successfully imported ${count} base reference keys` };
   },
 
   // Languages & Translations
@@ -78,31 +68,20 @@ export const ApiClient = {
     const game = await CloudGamesStore.getGame(gameId);
     return game?.languages || [];
   },
-
-  async addLanguage(gameId: string, code: string, name: string): Promise<LanguageProgress> {
-    return await CloudTranslationsStore.addLanguage(gameId, code, name);
-  },
-
-  async deleteLanguage(gameId: string, languageId: string): Promise<boolean> {
-    return await CloudTranslationsStore.deleteLanguage(gameId, languageId);
-  },
+  async addLanguage(gameId: string, code: string, name: string): Promise<LanguageProgress> { return await CloudTranslationsStore.addLanguage(gameId, code, name); },
+  async deleteLanguage(gameId: string, languageId: string): Promise<boolean> { return await CloudTranslationsStore.deleteLanguage(gameId, languageId); },
 
   async getTranslations(
     gameId: string,
     languageCode: string,
-    filters?: { status?: string; search?: string }
+    filters?: { status?: string; search?: string },
+    onSync?: (sync: { loaded: number; total: number }) => void
   ): Promise<KeyTranslationItem[]> {
-    return await CloudTranslationsStore.getTranslations(gameId, languageCode, filters);
+    return await CloudTranslationsStore.getTranslations(gameId, languageCode, filters, onSync);
   },
 
   async getPaginatedTranslations(params: {
-    gameId: string;
-    langCode: string;
-    page: number;
-    pageSize: number;
-    status?: string;
-    search?: string;
-    prefix?: string | null;
+    gameId: string; langCode: string; page: number; pageSize: number; status?: string; search?: string; prefix?: string | null;
   }) {
     return await CloudTranslationsStore.getPaginatedTranslations(params);
   },
@@ -117,10 +96,16 @@ export const ApiClient = {
   },
 
   async updateTranslationItem(params: {
-    key_id: string; language_id?: string; game_id?: string; language_code?: string; order_index?: number;
-    translated_text: string; status?: TranslationStatus; model_used?: string;
-  }): Promise<void> {
-    await CloudTranslationsStore.updateTranslationItem(params);
+    key_id: string;
+    language_id?: string;
+    game_id?: string;
+    language_code?: string;
+    order_index?: number;
+    translated_text: string;
+    status?: TranslationStatus;
+    model_used?: string;
+  }): Promise<{ updated: boolean; langProgress?: LanguageProgress }> {
+    return await CloudTranslationsStore.updateTranslationItem(params);
   },
 
   async updateMultipleTranslationItems(
@@ -144,16 +129,70 @@ export const ApiClient = {
     const settings = await CloudSettingsStore.getSettings();
     const targetLang = game.languages?.find((l) => l.language_code === params.languageCode);
 
-    return await BrowserAIService.translateSingle(
-      params.sourceText,
-      game.name,
-      game.context_prompt,
-      targetLang?.language_name || params.languageCode,
+    const { text } = await BrowserAIService.translate(
+      {
+        gameName: game.name,
+        gameContext: game.context_prompt,
+        baseLanguage: game.base_language || 'en',
+        targetLanguageName: targetLang?.language_name || params.languageCode,
+        targetLanguageCode: params.languageCode,
+        keyPath: params.keyPath,
+        sourceText: params.sourceText,
+        glossary,
+        customInstructions: params.customInstructions,
+      },
+      settings
+    );
+    return text;
+  },
+
+  async startBatch(params: {
+    gameId: string;
+    languageCode: string;
+    onlyUntranslated?: boolean;
+    customInstructions?: string;
+  }): Promise<string> {
+    const game = await this.getGame(params.gameId);
+    const targetLang = game.languages?.find((l) => l.language_code === params.languageCode);
+    const allItems = await CloudTranslationsStore.getTranslations(params.gameId, params.languageCode);
+    const glossary = await CloudGlossaryStore.getGlossary(params.gameId, params.languageCode);
+    const settings = await CloudSettingsStore.getSettings();
+
+    const itemsToTranslate = params.onlyUntranslated
+      ? allItems.filter((i) => !i.translated_text || i.status === 'untranslated')
+      : allItems;
+
+    const jobId = `job_${Date.now()}`;
+    BrowserBatchQueue.runBatch({
+      jobId,
+      gameId: params.gameId,
+      gameName: game.name,
+      gameContext: game.context_prompt || '',
+      baseLanguage: game.base_language || 'en',
+      targetLanguageName: targetLang?.language_name || params.languageCode,
+      targetLanguageCode: params.languageCode,
+      items: itemsToTranslate,
       glossary,
       settings,
-      game.whitelist_tags || [],
-      params.customInstructions
-    );
+      customInstructions: params.customInstructions,
+      onProgress: () => {},
+      onItemUpdated: async (item) => {
+        await this.updateTranslationItem({
+          key_id: item.key_id,
+          language_id: item.language_id,
+          translated_text: item.translated_text,
+          status: item.status,
+          model_used: item.model_used,
+        });
+      },
+    }).catch((err) => console.error('Batch error:', err));
+
+    return jobId;
+  },
+
+  async cancelBatch(jobId: string): Promise<boolean> {
+    BrowserBatchQueue.cancelJob(jobId);
+    return true;
   },
 
   async batchTranslate(params: {
@@ -179,42 +218,49 @@ export const ApiClient = {
     const glossary = await CloudGlossaryStore.getGlossary(params.gameId, params.languageCode);
     const settings = await CloudSettingsStore.getSettings();
 
-    const queue = new BrowserBatchQueue({
-      concurrency: settings.batch_concurrency || 2,
-      onProgress: (p) => params.onProgress?.(p),
-      onItemCompleted: async (keyId, text, model) => {
-        const item = allItems.find((i) => i.key_id === keyId || i.id === keyId);
-        if (item) {
-          item.translated_text = text;
-          item.status = 'ai_translated';
-          item.model_used = model;
-          await this.updateTranslationItem({
-            key_id: keyId,
-            language_id: item.language_id,
-            translated_text: text,
-            status: 'ai_translated',
-            model_used: model,
-          });
-        }
-      },
-      onError: (k, m) => params.onError?.({ keyPath: k, message: m }),
-    });
+    const jobId = `job_${Date.now()}`;
+    let completedCount = 0;
+    let failedCount = 0;
 
-    const result = await queue.start(
-      itemsToTranslate,
-      game.name,
-      params.contextPrompt || game.context_prompt,
-      params.targetLanguageName,
+    await BrowserBatchQueue.runBatch({
+      jobId,
+      gameId: params.gameId,
+      gameName: game.name,
+      gameContext: params.contextPrompt || game.context_prompt || '',
+      baseLanguage: game.base_language || 'en',
+      targetLanguageName: params.targetLanguageName,
+      targetLanguageCode: params.languageCode,
+      items: itemsToTranslate,
       glossary,
       settings,
-      params.whitelistTags || game.whitelist_tags || []
-    );
+      onProgress: (p) => {
+        const percent = p.total > 0 ? Math.round((p.completed / p.total) * 100) : 0;
+        params.onProgress?.({
+          completed: p.completed,
+          total: p.total,
+          percentage: percent,
+          currentKey: p.currentKey || '',
+        });
+      },
+      onItemUpdated: async (item) => {
+        if (item.status === 'ai_translated') {
+          completedCount++;
+        }
+        await this.updateTranslationItem({
+          key_id: item.key_id,
+          language_id: item.language_id,
+          translated_text: item.translated_text,
+          status: item.status,
+          model_used: item.model_used,
+        });
+      },
+    });
 
     return {
       totalProcessed: itemsToTranslate.length,
-      completedCount: result.completed,
-      failedCount: result.failed,
-      message: `Batch translation completed: ${result.completed} succeeded, ${result.failed} failed.`,
+      completedCount,
+      failedCount,
+      message: `Batch translation completed: ${completedCount} succeeded, ${failedCount} failed.`,
     };
   },
 
@@ -250,35 +296,15 @@ export const ApiClient = {
 
   // Gemini QA
   async analyzeWithGemini(gameId: string, languageCode: string): Promise<{ candidates: GlossaryCandidate[]; issues: TranslationIssue[]; message?: string }> {
-    const game = await this.getGame(gameId);
-    const targetLang = game.languages?.find((l) => l.language_code === languageCode);
-    const glossary = await CloudGlossaryStore.getGlossary(gameId, languageCode);
-    const translations = await CloudTranslationsStore.getTranslations(gameId, languageCode);
-    const settings = await CloudSettingsStore.getSettings();
-
-    const validPairs = translations.filter((t) => t.source_text?.trim() && t.translated_text?.trim()).slice(0, 100);
-    if (validPairs.length === 0) return { candidates: [], issues: [], message: 'No translated pairs to inspect.' };
-
-    const glossaryList = glossary.map((g) => `- "${g.source_term}" -> "${g.target_term}"`).join('\n');
-    const pairsList = validPairs.map((p, idx) => `[Item ${idx + 1}] Key: ${p.key_path}\nSource: "${p.source_text}"\nTranslation: "${p.translated_text}"`).join('\n\n');
-    const systemInstruction = 'You are a Lead Game Localization Director. Analyze translated pairs against source text and lore. Output valid JSON with "candidates" and "issues".';
-    const prompt = `Game: ${game.name}\n${game.context_prompt ? `Lore:\n${game.context_prompt}\n` : ''}Target: ${targetLang?.language_name || languageCode} (${languageCode})\nGlossary:\n${glossaryList || 'None'}\n\nTranslation Pairs:\n${pairsList}`;
-
-    const res = await BrowserAIService.generateStructuredJson<{ candidates?: GlossaryCandidate[]; issues?: TranslationIssue[] }>(prompt, systemInstruction, settings);
-    return { candidates: res.candidates || [], issues: res.issues || [] };
+    const { QaApiService } = await import('./qa_api_service.ts');
+    return await QaApiService.analyzeWithGemini(gameId, languageCode);
   },
 
   async fixSingleIssue(params: {
     gameId: string; languageCode: string; issue: { key_path: string; source_text: string; translated_text: string; issue_type: string; message: string };
   }): Promise<{ fixed_translation: string; explanation?: string }> {
-    const game = await this.getGame(params.gameId);
-    const targetLang = game.languages?.find((l) => l.language_code === params.languageCode);
-    const settings = await CloudSettingsStore.getSettings();
-    return await BrowserAIService.fixSingleIssue({
-      gameName: game.name, contextPrompt: game.context_prompt,
-      targetLanguage: targetLang?.language_name || params.languageCode,
-      whitelistTags: game.whitelist_tags, issue: params.issue,
-    }, settings);
+    const { QaApiService } = await import('./qa_api_service.ts');
+    return await QaApiService.fixSingleIssue(params);
   },
 
   // Settings

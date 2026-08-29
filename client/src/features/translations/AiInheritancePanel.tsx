@@ -81,7 +81,7 @@ export const AiInheritancePanel: React.FC<AiInheritancePanelProps> = ({
                 <span>Character Voices ({charCount})</span>
               </div>
               <p className="text-[#8B949E] text-[10px] line-clamp-3">
-                {contextData.characters.map((c) => `${c.name} (${c.formalityRegister})`).join(', ') || 'No voice dossiers.'}
+                {contextData.characters.map((c) => `${c.name} (${c.register})`).join(', ') || 'No voice dossiers.'}
               </p>
             </div>
 
@@ -103,7 +103,7 @@ export const AiInheritancePanel: React.FC<AiInheritancePanelProps> = ({
                 <span>Style Matrices</span>
               </div>
               <p className="text-[#8B949E] text-[10px]">
-                Gender: {contextData.styleGuide.grammaticalGenderPolicy} | Punctuation: {contextData.styleGuide.punctuationLocalization}
+                Gender: {contextData.styleGuide.grammaticalGender} | Punctuation: {contextData.styleGuide.punctuationConvention}
               </p>
             </div>
           </div>

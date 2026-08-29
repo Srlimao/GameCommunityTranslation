@@ -1,17 +1,17 @@
 import { test, expect } from '@playwright/test';
+import { cleanupTestArtifacts } from './test_cleanup_helper.ts';
 
 test.describe('Industrial Technical Dark Mode & Advanced Context Engine E2E Tests', () => {
+  test.beforeAll(async () => {
+    await cleanupTestArtifacts();
+  });
+
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
   });
 
   test.afterAll(async () => {
-    try {
-      const { db } = await import('../server/database/sqlite_client.ts');
-      db.prepare("DELETE FROM games WHERE name LIKE 'Aetheria Lore Hub%' OR name LIKE 'Chronicles of Solaria%'").run();
-    } catch (e) {
-      console.warn('Test cleanup notice:', e);
-    }
+    await cleanupTestArtifacts();
   });
 
   test('1. Developer Console Aesthetic, Left Sidebar & Context-First Dashboard Verification', async ({ page }) => {

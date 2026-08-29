@@ -1,6 +1,6 @@
 import React from 'react';
 import { CodeValidationSummary } from './code_validator.ts';
-import { CheckCircle2, AlertTriangle, Terminal, Code2, Layers, Zap, Tag, Sparkles, Loader2 } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Terminal, Code2, Layers, Zap, Tag, Sparkles, Loader2, Copy } from 'lucide-react';
 
 interface AutoCheckSummaryCardProps {
   summary: CodeValidationSummary | null;
@@ -13,6 +13,8 @@ interface AutoCheckSummaryCardProps {
   totalIssuesCount?: number;
   whitelistTagsCount?: number;
   onOpenWhitelistModal?: () => void;
+  activeFilter?: string | null;
+  onSelectFilter?: (filterKey: string | null) => void;
 }
 
 export const AutoCheckSummaryCard: React.FC<AutoCheckSummaryCardProps> = ({
@@ -26,7 +28,21 @@ export const AutoCheckSummaryCard: React.FC<AutoCheckSummaryCardProps> = ({
   totalIssuesCount = 0,
   whitelistTagsCount = 0,
   onOpenWhitelistModal,
+  activeFilter = null,
+  onSelectFilter,
 }) => {
+  const toggleFilter = (key: string | null) => {
+    if (!onSelectFilter) return;
+    onSelectFilter(activeFilter === key ? null : key);
+  };
+
+  const getChipStyle = (filterKey: string | null, isError: boolean, defaultBorder: string) => {
+    const isSelected = activeFilter === filterKey;
+    const base = 'p-2.5 transition-all select-none cursor-pointer border ';
+    if (isSelected) return `${base} bg-[#1F6FEB]/20 border-[#58A6FF] ring-1 ring-[#58A6FF] shadow-lg shadow-[#1F6FEB]/10`;
+    return `${base} bg-[#0D1117] ${isError ? defaultBorder : 'border-[#30363D]'} hover:border-[#58A6FF]/60 hover:bg-[#161B22]`;
+  };
+
   return (
     <div className="bg-[#161B22] border border-[#30363D] p-4 space-y-4 font-mono">
       {/* Top Banner */}
@@ -41,9 +57,17 @@ export const AutoCheckSummaryCard: React.FC<AutoCheckSummaryCardProps> = ({
               <span className="text-[10px] bg-[#238636]/20 text-[#3FB950] border border-[#238636] px-1.5 py-0.2">
                 AUTO CHECK
               </span>
+              {activeFilter && (
+                <button
+                  onClick={() => toggleFilter(null)}
+                  className="text-[10px] bg-[#5865F2]/20 text-[#58A6FF] border border-[#5865F2] px-2 py-0.5 hover:bg-[#5865F2]/40 transition-colors"
+                >
+                  FILTER ACTIVE: {activeFilter.toUpperCase()} (RESET ✕)
+                </button>
+              )}
             </h3>
             <p className="text-[11px] text-[#8B949E]">
-              Deterministic rule validator for tabs (\t), variables, brackets, and markup tags.
+              Click any KPI chip to filter the issues list. Deterministic validator for tags, tabs, brackets, and untranslated copies.
             </p>
           </div>
         </div>
@@ -66,7 +90,7 @@ export const AutoCheckSummaryCard: React.FC<AutoCheckSummaryCardProps> = ({
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-[#1F6FEB] hover:bg-[#388BFD] text-white border border-[#1F6FEB] transition-colors cursor-pointer disabled:opacity-50"
           >
             <Zap className="w-3.5 h-3.5" />
-            <span>{isRunning ? 'CHECKING...' : 'RUN VALIDATOR'}</span>
+            <span>{isRunning ? 'CHECKING...' : 'RUN CODE VALIDATOR'}</span>
           </button>
 
           {totalIssuesCount > 0 && onBatchAiFix && (
@@ -96,9 +120,9 @@ export const AutoCheckSummaryCard: React.FC<AutoCheckSummaryCardProps> = ({
 
       {/* Grid of Status Chips */}
       {summary ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2 text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 text-xs">
           {/* Total Checked */}
-          <div className="bg-[#0D1117] border border-[#30363D] p-2.5">
+          <div onClick={() => toggleFilter(null)} className={getChipStyle(null, false, 'border-[#30363D]')}>
             <div className="text-[9px] uppercase font-bold text-[#8B949E] flex items-center gap-1">
               <Layers className="w-3 h-3 text-[#8B949E]" />
               <span>Keys Scanned</span>
@@ -107,7 +131,7 @@ export const AutoCheckSummaryCard: React.FC<AutoCheckSummaryCardProps> = ({
           </div>
 
           {/* Clean / Passed */}
-          <div className="bg-[#0D1117] border border-[#30363D] p-2.5">
+          <div onClick={() => toggleFilter('clean')} className={getChipStyle('clean', false, 'border-[#30363D]')}>
             <div className="text-[9px] uppercase font-bold text-[#3FB950] flex items-center gap-1">
               <CheckCircle2 className="w-3 h-3" />
               <span>Clean Keys</span>
@@ -115,8 +139,19 @@ export const AutoCheckSummaryCard: React.FC<AutoCheckSummaryCardProps> = ({
             <div className="text-lg font-bold text-[#3FB950] mt-1">{summary.cleanCount}</div>
           </div>
 
+          {/* Identical to Base */}
+          <div onClick={() => toggleFilter('identical_to_source')} className={getChipStyle('identical_to_source', summary.identicalToSourceCount > 0, 'border-[#D29922]')}>
+            <div className="text-[9px] uppercase font-bold text-[#E3B341] flex items-center gap-1">
+              <Copy className="w-3 h-3 text-[#E3B341]" />
+              <span>Untranslated</span>
+            </div>
+            <div className={`text-lg font-bold mt-1 ${summary.identicalToSourceCount > 0 ? 'text-[#E3B341]' : 'text-[#8B949E]'}`}>
+              {summary.identicalToSourceCount > 0 ? `${summary.identicalToSourceCount} Identical` : '0 OK'}
+            </div>
+          </div>
+
           {/* Tag Parity */}
-          <div className={`bg-[#0D1117] border p-2.5 ${summary.tagMismatches > 0 ? 'border-[#F778BA]' : 'border-[#30363D]'}`}>
+          <div onClick={() => toggleFilter('tag_mismatch')} className={getChipStyle('tag_mismatch', summary.tagMismatches > 0, 'border-[#F778BA]')}>
             <div className="text-[9px] uppercase font-bold text-[#F778BA] flex items-center gap-1">
               <Code2 className="w-3 h-3" />
               <span>Tags &lt;&gt; &lt;/&gt;</span>
@@ -127,7 +162,7 @@ export const AutoCheckSummaryCard: React.FC<AutoCheckSummaryCardProps> = ({
           </div>
 
           {/* Tab Mismatches */}
-          <div className={`bg-[#0D1117] border p-2.5 ${summary.tabMismatches > 0 ? 'border-[#1F6FEB]' : 'border-[#30363D]'}`}>
+          <div onClick={() => toggleFilter('tab_mismatch')} className={getChipStyle('tab_mismatch', summary.tabMismatches > 0, 'border-[#1F6FEB]')}>
             <div className="text-[9px] uppercase font-bold text-[#58A6FF] flex items-center gap-1">
               <Terminal className="w-3 h-3" />
               <span>Tab Parity (\t)</span>
@@ -138,7 +173,7 @@ export const AutoCheckSummaryCard: React.FC<AutoCheckSummaryCardProps> = ({
           </div>
 
           {/* Code Symbols / Variables */}
-          <div className={`bg-[#0D1117] border p-2.5 ${summary.symbolMismatches > 0 ? 'border-[#A371F7]' : 'border-[#30363D]'}`}>
+          <div onClick={() => toggleFilter('symbol_mismatch')} className={getChipStyle('symbol_mismatch', summary.symbolMismatches > 0, 'border-[#A371F7]')}>
             <div className="text-[9px] uppercase font-bold text-[#BC8CFF] flex items-center gap-1">
               <Code2 className="w-3 h-3" />
               <span>Symbol & Vars</span>
@@ -149,7 +184,7 @@ export const AutoCheckSummaryCard: React.FC<AutoCheckSummaryCardProps> = ({
           </div>
 
           {/* Bracket Parity */}
-          <div className={`bg-[#0D1117] border p-2.5 ${summary.bracketMismatches > 0 ? 'border-[#E5534B]' : 'border-[#30363D]'}`}>
+          <div onClick={() => toggleFilter('placeholder_mismatch')} className={getChipStyle('placeholder_mismatch', summary.bracketMismatches > 0, 'border-[#E5534B]')}>
             <div className="text-[9px] uppercase font-bold text-[#F85149] flex items-center gap-1">
               <AlertTriangle className="w-3 h-3" />
               <span>Brackets &#123;&#125; []</span>
@@ -160,7 +195,7 @@ export const AutoCheckSummaryCard: React.FC<AutoCheckSummaryCardProps> = ({
           </div>
 
           {/* Newlines */}
-          <div className={`bg-[#0D1117] border p-2.5 ${summary.newlineMismatches > 0 ? 'border-[#D29922]' : 'border-[#30363D]'}`}>
+          <div onClick={() => toggleFilter('formatting_loss')} className={getChipStyle('formatting_loss', summary.newlineMismatches > 0, 'border-[#D29922]')}>
             <div className="text-[9px] uppercase font-bold text-[#E3B341] flex items-center gap-1">
               <AlertTriangle className="w-3 h-3" />
               <span>Newlines (\n)</span>

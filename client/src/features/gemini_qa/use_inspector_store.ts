@@ -13,56 +13,71 @@ export interface InspectorState {
 
 const STORAGE_PREFIX = 'local_translator_inspector_state_';
 
+function getStorageKey(gameId: string, langCode: string): string {
+  return `${STORAGE_PREFIX}${gameId}_${langCode || 'default'}`;
+}
+
+function loadSavedState(gameId: string, langCode: string): InspectorState {
+  const key = getStorageKey(gameId, langCode);
+  try {
+    const saved = localStorage.getItem(key);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return {
+        selectedLangCode: langCode || parsed.selectedLangCode || '',
+        activeTab: parsed.activeTab || 'auto_checks',
+        candidates: Array.isArray(parsed.candidates) ? parsed.candidates : [],
+        issues: Array.isArray(parsed.issues) ? parsed.issues : [],
+        validationSummary: parsed.validationSummary || null,
+        lastRunTime: parsed.lastRunTime || null,
+      };
+    }
+  } catch (e) {
+    console.warn('Failed to parse saved inspector state:', e);
+  }
+  return {
+    selectedLangCode: langCode || '',
+    activeTab: 'auto_checks',
+    candidates: [],
+    issues: [],
+    validationSummary: null,
+    lastRunTime: null,
+  };
+}
+
 export function useInspectorStore(gameId: string, initialLangCode: string) {
-  const storageKey = `${STORAGE_PREFIX}${gameId}`;
+  const [currentLang, setCurrentLang] = useState<string>(initialLangCode || '');
 
-  // Initialize from localStorage if available
-  const [state, setState] = useState<InspectorState>(() => {
-    try {
-      const saved = localStorage.getItem(storageKey);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return {
-          selectedLangCode: parsed.selectedLangCode || initialLangCode || '',
-          activeTab: parsed.activeTab || 'auto_checks',
-          candidates: parsed.candidates || [],
-          issues: parsed.issues || [],
-          validationSummary: parsed.validationSummary || null,
-          lastRunTime: parsed.lastRunTime || null,
-        };
+  // Initialize from language-scoped localStorage
+  const [state, setState] = useState<InspectorState>(() => loadSavedState(gameId, initialLangCode));
+
+  // Sync initial language if needed
+  useEffect(() => {
+    if (initialLangCode && initialLangCode !== currentLang && !currentLang) {
+      setCurrentLang(initialLangCode);
+      setState(loadSavedState(gameId, initialLangCode));
+    }
+  }, [gameId, initialLangCode, currentLang]);
+
+  // Debounced save to localStorage whenever state changes
+  useEffect(() => {
+    if (!state.selectedLangCode) return;
+    const key = getStorageKey(gameId, state.selectedLangCode);
+    const timer = setTimeout(() => {
+      try {
+        localStorage.setItem(key, JSON.stringify(state));
+      } catch (e) {
+        console.warn('Failed to persist inspector state:', e);
       }
-    } catch (e) {
-      console.warn('Failed to parse saved inspector state:', e);
-    }
-    return {
-      selectedLangCode: initialLangCode || '',
-      activeTab: 'auto_checks',
-      candidates: [],
-      issues: [],
-      validationSummary: null,
-      lastRunTime: null,
-    };
-  });
-
-  // Save to localStorage whenever state changes
-  useEffect(() => {
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(state));
-    } catch (e) {
-      console.warn('Failed to persist inspector state:', e);
-    }
-  }, [storageKey, state]);
-
-  // Sync initial language if not set
-  useEffect(() => {
-    if (!state.selectedLangCode && initialLangCode) {
-      setState((prev) => ({ ...prev, selectedLangCode: initialLangCode }));
-    }
-  }, [initialLangCode, state.selectedLangCode]);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [gameId, state]);
 
   const setSelectedLangCode = useCallback((code: string) => {
-    setState((prev) => ({ ...prev, selectedLangCode: code }));
-  }, []);
+    if (!code || code === state.selectedLangCode) return;
+    setCurrentLang(code);
+    setState(loadSavedState(gameId, code));
+  }, [gameId, state.selectedLangCode]);
 
   const setActiveTab = useCallback((tab: 'auto_checks' | 'issues' | 'candidates') => {
     setState((prev) => ({ ...prev, activeTab: tab }));
@@ -134,11 +149,12 @@ export function useInspectorStore(gameId: string, initialLangCode: string) {
       lastRunTime: null,
     }));
     try {
-      localStorage.removeItem(storageKey);
+      const key = getStorageKey(gameId, state.selectedLangCode);
+      localStorage.removeItem(key);
     } catch (e) {
       console.warn('Failed to clear inspector state:', e);
     }
-  }, [storageKey]);
+  }, [gameId, state.selectedLangCode]);
 
   const updateIssueSuggestions = useCallback((fixes: Array<{ key_path: string; fixed_translation: string }>, autoApply: boolean = false) => {
     const fixMap = new Map(fixes.map((f) => [f.key_path, f.fixed_translation]));

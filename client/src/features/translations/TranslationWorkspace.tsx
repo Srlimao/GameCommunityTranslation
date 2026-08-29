@@ -26,7 +26,6 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
   onNavigateToGeminiQA,
 }) => {
   const [selectedLangCode, setSelectedLangCode] = useState<string>(game.languages?.[0]?.language_code || '');
-  const [items, setItems] = useState<KeyTranslationItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [backgroundSync, setBackgroundSync] = useState<{ loaded: number; total: number } | null>(null);
   const [isAddLangOpen, setIsAddLangOpen] = useState(false);
@@ -37,11 +36,22 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
   const [glossaryCount, setGlossaryCount] = useState<number>(game.glossaryCount || 0);
   const contextData = useMemo(() => ContextSerializer.parse(game.context_prompt), [game.context_prompt]);
 
+  const currentLang = game.languages?.find((l) => l.language_code === selectedLangCode);
+  const [liveProgress, setLiveProgress] = useState<LanguageProgress | undefined>(currentLang);
+
   useEffect(() => {
     if (!selectedLangCode && game.languages?.length > 0) {
       setSelectedLangCode(game.languages[0].language_code);
     }
   }, [game.languages, selectedLangCode]);
+
+  useEffect(() => {
+    if (currentLang) {
+      setLiveProgress({ ...currentLang });
+    } else {
+      setLiveProgress(undefined);
+    }
+  }, [currentLang?.language_code, currentLang?.translated_keys, currentLang?.approved_keys, currentLang?.total_keys]);
 
   useEffect(() => {
     if (game.id) {
@@ -55,39 +65,33 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
     if (!selectedLangCode) return;
     setIsLoading(true);
     try {
-      const data = await ApiClient.getTranslations(game.id, selectedLangCode, undefined, (sync) => {
+      await ApiClient.getTranslations(game.id, selectedLangCode, undefined, (sync) => {
         setBackgroundSync(sync);
       });
-      setItems(data);
+      const updatedGame = await ApiClient.getGame(game.id);
+      const targetLang = updatedGame?.languages?.find((l) => l.language_code === selectedLangCode);
+      if (targetLang) setLiveProgress(targetLang);
     } catch (err) {
-      console.error('Failed to load translations:', err);
+      console.error('Failed to sync translations:', err);
     } finally {
       setIsLoading(false);
     }
   };
-
-  useEffect(() => { loadTranslations(); }, [game.id, selectedLangCode]);
 
   useEffect(() => {
     const existing = SseTranslationStream.getActiveJob(game.id, selectedLangCode) || SseTranslationStream.getActiveJob();
     if (existing?.status === 'running') setActiveBatch(existing);
 
     const unsubProgress = SseTranslationStream.onProgress((data) => {
-      if (data.status === 'running') setActiveBatch(data);
-      else if (['completed', 'cancelled', 'error'].includes(data.status)) {
+      if (data.status === 'running') {
+        setActiveBatch(data);
+      } else if (['completed', 'cancelled', 'error'].includes(data.status)) {
         setActiveBatch(null);
-        loadTranslations();
         onRefreshGame();
       }
     });
 
-    const unsubKey = SseTranslationStream.onKeyDone((data) => {
-      setItems((prev) =>
-        prev.map((it) => (it.key_id === data.keyId ? { ...it, translated_text: data.translatedText, status: 'ai_translated' } : it))
-      );
-    });
-
-    return () => { unsubProgress(); unsubKey(); };
+    return () => { unsubProgress(); };
   }, [game.id, selectedLangCode]);
 
   const handleStopActiveBatch = async () => {
@@ -95,25 +99,48 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
     if (targetJobId) {
       try { await ApiClient.cancelBatch(targetJobId); } catch (err) { console.error(err); }
       setActiveBatch(null);
-      await loadTranslations();
       await onRefreshGame();
     }
   };
 
-  const currentLang = game.languages?.find((l) => l.language_code === selectedLangCode);
-
-  const handleSaveTranslation = async (keyId: string, text: string, status?: TranslationStatus) => {
+  const handleSaveTranslation = async (
+    keyId: string,
+    text: string,
+    status?: TranslationStatus,
+    orderIndex?: number
+  ) => {
     if (!currentLang) return;
-    await ApiClient.updateTranslationItem({
+    const finalStatus = status || (text.trim() ? 'manual_translated' : 'untranslated');
+
+    // Optimistic progress update in state (<1ms)
+    setLiveProgress((prev) => {
+      if (!prev) return prev;
+      const isApproved = finalStatus === 'approved';
+      const isTranslated = Boolean(text.trim());
+      const approved = isApproved ? Math.min(prev.total_keys, (prev.approved_keys || 0) + 1) : prev.approved_keys;
+      const translated = isTranslated ? Math.max(prev.translated_keys || 0, (prev.translated_keys || 0) + 1) : prev.translated_keys;
+      const total = prev.total_keys || game.totalKeys || 0;
+      return {
+        ...prev,
+        approved_keys: approved,
+        translated_keys: translated,
+        progress_percentage: total > 0 ? Math.round((translated / total) * 100) : 0,
+      };
+    });
+
+    const res = await ApiClient.updateTranslationItem({
       key_id: keyId,
       language_id: currentLang.language_id,
+      game_id: game.id,
+      language_code: selectedLangCode,
+      order_index: orderIndex,
       translated_text: text,
-      status,
+      status: finalStatus,
     });
-    setItems((prev) =>
-      prev.map((it) => (it.key_id === keyId ? { ...it, translated_text: text, status: status || it.status } : it))
-    );
-    await onRefreshGame();
+
+    if (res.langProgress) {
+      setLiveProgress(res.langProgress);
+    }
   };
 
   const handleTranslateSingle = async (item: KeyTranslationItem): Promise<string> => {
@@ -124,10 +151,6 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
       keyPath: item.key_path,
       sourceText: item.source_text,
     });
-    setItems((prev) =>
-      prev.map((it) => (it.key_id === item.key_id ? { ...it, translated_text: result, status: 'ai_translated' } : it))
-    );
-    await onRefreshGame();
     return result;
   };
 
@@ -144,11 +167,7 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
   const handleExportJson = async () => {
     if (!selectedLangCode) return;
     try {
-      const exportMap = await ApiClient.getTranslations(game.id, selectedLangCode).then((list) => {
-        const map: Record<string, string> = {};
-        for (const item of list) map[item.key_path] = item.translated_text || item.source_text;
-        return map;
-      });
+      const exportMap = await ApiClient.getExportMap(game.id, selectedLangCode);
       const rawTemplate = game.raw_json_template || '';
       const { ClientJsonExporter } = await import('../games/utils/client_json_exporter.ts');
       const localizedJson = ClientJsonExporter.unflattenWithTemplate(exportMap, rawTemplate, game.schema_config);
@@ -159,24 +178,10 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
     }
   };
 
-  // Compute live progress from currentLang without expensive full array iterations on 100k+ keys
-  const liveProgress = useMemo(() => {
-    if (!currentLang) return undefined;
-    return {
-      ...currentLang,
-      total_keys: currentLang.total_keys || game.totalKeys || items.length,
-      translated_keys: currentLang.translated_keys || 0,
-      approved_keys: currentLang.approved_keys || 0,
-      progress_percentage: currentLang.progress_percentage || 0,
-    };
-  }, [currentLang, game.totalKeys, items.length]);
-
   const untranslatedCount = useMemo(() => {
-    if (!currentLang) return 0;
-    const total = currentLang.total_keys || game.totalKeys || 0;
-    const translated = currentLang.translated_keys || 0;
-    return Math.max(0, total - translated);
-  }, [currentLang, game.totalKeys]);
+    if (!liveProgress) return 0;
+    return Math.max(0, (liveProgress.total_keys || 0) - (liveProgress.translated_keys || 0));
+  }, [liveProgress]);
 
   return (
     <div className="space-y-3 font-mono">
@@ -198,7 +203,12 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
 
       {selectedLangCode && currentLang ? (
         <div className="space-y-3">
-          {liveProgress && <TranslationProgressBar progress={liveProgress} />}
+          {liveProgress && (
+            <TranslationProgressBar
+              progress={liveProgress}
+              totalKeys={liveProgress.total_keys || game.totalKeys || 0}
+            />
+          )}
 
           <div className="flex items-center justify-between text-xs text-[#8B949E] px-1">
             <div className="flex items-center gap-3">
@@ -242,12 +252,13 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
 
       <LanguageSelectorModal
         isOpen={isAddLangOpen}
-        existingLanguages={game.languages || []}
+        gameId={game.id}
         onClose={() => setIsAddLangOpen(false)}
-        onAddLanguage={async (code, name) => {
-          await ApiClient.addLanguage(game.id, code, name);
+        onLanguageAdded={async (code) => {
           await onRefreshGame();
-          setSelectedLangCode(code);
+          if (code) {
+            setSelectedLangCode(code);
+          }
           setIsAddLangOpen(false);
         }}
       />
@@ -256,12 +267,13 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
         <BatchTranslateModal
           isOpen={isBatchOpen}
           gameId={game.id}
+          gameName={game.name}
           languageCode={selectedLangCode}
           languageName={currentLang.language_name}
-          contextPrompt={game.context_prompt}
           untranslatedCount={untranslatedCount}
+          totalCount={liveProgress?.total_keys || game.totalKeys || 0}
           onClose={() => setIsBatchOpen(false)}
-          onStartBatch={loadTranslations}
+          onBatchFinished={onRefreshGame}
         />
       )}
 
@@ -270,7 +282,7 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
         gameId={game.id}
         gameName={game.name}
         onClose={() => setIsImportJsonOpen(false)}
-        onImportSuccess={() => { onRefreshGame(); loadTranslations(); }}
+        onImportSuccess={() => { onRefreshGame(); }}
       />
 
       {currentLang && (
@@ -279,9 +291,8 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
           game={game}
           languageCode={selectedLangCode}
           languageName={currentLang.language_name}
-          existingItems={items}
           onClose={() => setIsImportPartialOpen(false)}
-          onImportSuccess={() => { onRefreshGame(); loadTranslations(); }}
+          onImportSuccess={() => { onRefreshGame(); }}
         />
       )}
     </div>
