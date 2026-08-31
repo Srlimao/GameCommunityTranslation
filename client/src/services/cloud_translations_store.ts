@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { KeyTranslationItem, LanguageProgress, TranslationStatus, JsonSchemaConfig } from '../types/client_types.ts';
+import { KeyTranslationItem, TreeKeyItem, LanguageProgress, TranslationStatus, JsonSchemaConfig } from '../types/client_types.ts';
 import { RemoteJsonDb } from './remote_json_db.ts';
 import { LocalCacheStore } from './local_cache_store.ts';
 import { CloudGamesStore } from './cloud_games_store.ts';
@@ -64,6 +64,18 @@ export class CloudTranslationsStore {
     return await TranslationChunkManager.getChunk(gameId, langCode, chunkIndex);
   }
 
+  static async ensureAllChunksCached(
+    gameId: string,
+    langCode: string,
+    onSync?: (sync: { loaded: number; total: number }) => void
+  ): Promise<TranslationChunkDoc[]> {
+    return await TranslationChunkManager.ensureAllChunksCached(gameId, langCode, onSync);
+  }
+
+  static async getTreeItems(gameId: string, langCode: string): Promise<TreeKeyItem[]> {
+    return await TranslationChunkManager.getTreeItems(gameId, langCode);
+  }
+
   static async getPaginatedTranslations(params: {
     gameId: string;
     langCode: string;
@@ -76,17 +88,30 @@ export class CloudTranslationsStore {
     const { gameId, langCode, page, pageSize, status, search, prefix } = params;
 
     if ((search && search.trim()) || (status && status !== 'all') || prefix) {
+      await TranslationChunkManager.ensureAllChunksCached(gameId, langCode);
       const cached = await LocalCacheStore.getAll<TranslationChunkDoc>('translation_chunks');
       let list: KeyTranslationItem[] = [];
-      cached.filter(c => c && c.game_id === gameId && c.language_code === langCode).sort((a, b) => a.chunk_index - b.chunk_index).forEach(c => { if (c.items) list.push(...c.items); });
+      cached
+        .filter((c) => c && c.game_id === gameId && c.language_code === langCode)
+        .sort((a, b) => a.chunk_index - b.chunk_index)
+        .forEach((c) => {
+          if (c.items) list.push(...c.items);
+        });
 
-      if (prefix) list = list.filter(i => i.key_path.toLowerCase().startsWith(prefix.toLowerCase()));
+      if (prefix) {
+        const pLower = prefix.toLowerCase();
+        list = list.filter((i) => {
+          let k = i.key_path.toLowerCase();
+          if (k.startsWith('$$$') && k.endsWith('$$')) k = k.slice(3, -2);
+          return k.startsWith(pLower) || k.startsWith(`.${pLower}`) || k.startsWith(`/${pLower}`) || k.startsWith(`:${pLower}`);
+        });
+      }
       if (status && status !== 'all') {
-        list = status === 'untranslated' ? list.filter(i => i.status === 'untranslated' || !i.translated_text) : list.filter(i => i.status === status);
+        list = status === 'untranslated' ? list.filter((i) => i.status === 'untranslated' || !i.translated_text) : list.filter((i) => i.status === status);
       }
       if (search && search.trim()) {
         const q = search.trim().toLowerCase();
-        list = list.filter(i => i.key_path.toLowerCase().includes(q) || i.source_text.toLowerCase().includes(q) || (i.translated_text || '').toLowerCase().includes(q));
+        list = list.filter((i) => i.key_path.toLowerCase().includes(q) || i.source_text.toLowerCase().includes(q) || (i.translated_text || '').toLowerCase().includes(q));
       }
       const totalCount = list.length, totalPages = Math.max(1, Math.ceil(totalCount / pageSize)), validPage = Math.min(Math.max(1, page), totalPages);
       return { items: list.slice((validPage - 1) * pageSize, validPage * pageSize), totalCount, page: validPage, pageSize, totalPages };

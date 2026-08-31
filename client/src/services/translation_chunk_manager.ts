@@ -1,4 +1,4 @@
-import { KeyTranslationItem } from '../types/client_types.ts';
+import { KeyTranslationItem, TreeKeyItem } from '../types/client_types.ts';
 import { RemoteJsonDb } from './remote_json_db.ts';
 import { LocalCacheStore } from './local_cache_store.ts';
 import { runWithConcurrency } from './concurrency_limiter.ts';
@@ -59,4 +59,77 @@ export class TranslationChunkManager {
     if (doc) await LocalCacheStore.set('translation_chunks', doc);
     return doc;
   }
+
+  static async ensureAllChunksCached(
+    gameId: string,
+    langCode: string,
+    onSync?: (sync: { loaded: number; total: number }) => void
+  ): Promise<TranslationChunkDoc[]> {
+    const meta = await RemoteJsonDb.getDoc<{ totalChunks: number }>(COLLECTION_TRANSLATIONS, `${gameId}_${langCode}_meta`);
+    const totalChunks = meta?.totalChunks || 1;
+
+    const allCached = await LocalCacheStore.getAll<TranslationChunkDoc>('translation_chunks');
+    const existingMap = new Map<number, TranslationChunkDoc>();
+    allCached
+      .filter((c) => c && c.game_id === gameId && c.language_code === langCode)
+      .forEach((c) => existingMap.set(c.chunk_index, c));
+
+    const missingIndexes: number[] = [];
+    for (let i = 0; i < totalChunks; i++) {
+      if (!existingMap.has(i)) {
+        missingIndexes.push(i);
+      }
+    }
+
+    if (missingIndexes.length > 0) {
+      let loaded = totalChunks - missingIndexes.length;
+      if (onSync) onSync({ loaded, total: totalChunks });
+
+      await runWithConcurrency(missingIndexes, CONCURRENT_CHUNKS, async (chunkIdx) => {
+        const chunk = await this.getChunk(gameId, langCode, chunkIdx);
+        if (chunk) {
+          existingMap.set(chunkIdx, chunk);
+        }
+        loaded++;
+        if (onSync) onSync({ loaded, total: totalChunks });
+      });
+    } else if (onSync) {
+      onSync({ loaded: totalChunks, total: totalChunks });
+    }
+
+    return Array.from(existingMap.values()).sort((a, b) => a.chunk_index - b.chunk_index);
+  }
+
+  static async getTreeItems(gameId: string, langCode: string): Promise<TreeKeyItem[]> {
+    // 1. Fast path: check if local cache already has chunks
+    let cached = await LocalCacheStore.getAll<TranslationChunkDoc>('translation_chunks');
+    let matching = cached.filter((c) => c && c.game_id === gameId && c.language_code === langCode);
+
+    if (matching.length === 0) {
+      matching = await this.ensureAllChunksCached(gameId, langCode);
+    } else {
+      // Trigger background verification without blocking
+      this.ensureAllChunksCached(gameId, langCode).catch(() => {});
+    }
+
+    matching.sort((a, b) => a.chunk_index - b.chunk_index);
+    const treeItems: TreeKeyItem[] = [];
+
+    for (const chunk of matching) {
+      if (chunk.items) {
+        for (const item of chunk.items) {
+          treeItems.push({
+            key_path: item.key_path,
+            status: item.status,
+            translated_text: item.translated_text,
+            key_id: item.key_id,
+            order_index: item.order_index,
+          });
+        }
+      }
+    }
+
+    return treeItems;
+  }
 }
+

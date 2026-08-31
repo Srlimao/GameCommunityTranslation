@@ -80,10 +80,10 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
 
   useEffect(() => {
     const existing = SseTranslationStream.getActiveJob(game.id, selectedLangCode) || SseTranslationStream.getActiveJob();
-    if (existing?.status === 'running') setActiveBatch(existing);
+    if (existing && (existing.status === 'running' || existing.status === 'paused')) setActiveBatch(existing);
 
     const unsubProgress = SseTranslationStream.onProgress((data) => {
-      if (data.status === 'running') {
+      if (data.status === 'running' || data.status === 'paused') {
         setActiveBatch(data);
       } else if (['completed', 'cancelled', 'error'].includes(data.status)) {
         setActiveBatch(null);
@@ -94,6 +94,16 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
     return () => { unsubProgress(); };
   }, [game.id, selectedLangCode]);
 
+  const handlePauseBatch = () => {
+    const targetJobId = activeBatch?.jobId || SseTranslationStream.getActiveJob()?.jobId;
+    if (targetJobId) SseTranslationStream.pauseJob(targetJobId);
+  };
+
+  const handleResumeBatch = () => {
+    const targetJobId = activeBatch?.jobId || SseTranslationStream.getActiveJob()?.jobId;
+    if (targetJobId) SseTranslationStream.resumeJob(targetJobId);
+  };
+
   const handleStopActiveBatch = async () => {
     const targetJobId = activeBatch?.jobId || SseTranslationStream.getActiveJob()?.jobId;
     if (targetJobId) {
@@ -103,16 +113,10 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
     }
   };
 
-  const handleSaveTranslation = async (
-    keyId: string,
-    text: string,
-    status?: TranslationStatus,
-    orderIndex?: number
-  ) => {
+  const handleSaveTranslation = async (keyId: string, text: string, status?: TranslationStatus, orderIndex?: number) => {
     if (!currentLang) return;
     const finalStatus = status || (text.trim() ? 'manual_translated' : 'untranslated');
 
-    // Optimistic progress update in state (<1ms)
     setLiveProgress((prev) => {
       if (!prev) return prev;
       const isApproved = finalStatus === 'approved';
@@ -129,29 +133,18 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
     });
 
     const res = await ApiClient.updateTranslationItem({
-      key_id: keyId,
-      language_id: currentLang.language_id,
-      game_id: game.id,
-      language_code: selectedLangCode,
-      order_index: orderIndex,
-      translated_text: text,
-      status: finalStatus,
+      key_id: keyId, language_id: currentLang.language_id, game_id: game.id,
+      language_code: selectedLangCode, order_index: orderIndex,
+      translated_text: text, status: finalStatus,
     });
-
-    if (res.langProgress) {
-      setLiveProgress(res.langProgress);
-    }
+    if (res.langProgress) setLiveProgress(res.langProgress);
   };
 
   const handleTranslateSingle = async (item: KeyTranslationItem): Promise<string> => {
-    const result = await ApiClient.translateSingleKey({
-      gameId: game.id,
-      languageCode: selectedLangCode,
-      keyId: item.key_id,
-      keyPath: item.key_path,
-      sourceText: item.source_text,
+    return await ApiClient.translateSingleKey({
+      gameId: game.id, languageCode: selectedLangCode, keyId: item.key_id,
+      keyPath: item.key_path, sourceText: item.source_text,
     });
-    return result;
   };
 
   const handleDeleteLanguage = async (languageId: string, langName: string) => {
@@ -197,6 +190,8 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
         onOpenBatch={() => setIsBatchOpen(true)}
         activeBatch={activeBatch}
         onStopBatch={handleStopActiveBatch}
+        onPauseBatch={handlePauseBatch}
+        onResumeBatch={handleResumeBatch}
       />
 
       <AiInheritancePanel contextData={contextData} glossaryCount={glossaryCount} />
@@ -204,10 +199,7 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
       {selectedLangCode && currentLang ? (
         <div className="space-y-3">
           {liveProgress && (
-            <TranslationProgressBar
-              progress={liveProgress}
-              totalKeys={liveProgress.total_keys || game.totalKeys || 0}
-            />
+            <TranslationProgressBar progress={liveProgress} totalKeys={liveProgress.total_keys || game.totalKeys || 0} />
           )}
 
           <div className="flex items-center justify-between text-xs text-[#8B949E] px-1">
@@ -256,9 +248,7 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
         onClose={() => setIsAddLangOpen(false)}
         onLanguageAdded={async (code) => {
           await onRefreshGame();
-          if (code) {
-            setSelectedLangCode(code);
-          }
+          if (code) setSelectedLangCode(code);
           setIsAddLangOpen(false);
         }}
       />
@@ -298,3 +288,4 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
     </div>
   );
 };
+

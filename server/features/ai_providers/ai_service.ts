@@ -32,6 +32,10 @@ export class AIService {
   }
 
   static async translate(params: PromptInputParams, userId?: string): Promise<{ text: string; modelUsed: string }> {
+    if (!params.sourceText || !params.sourceText.trim()) {
+      return { text: params.sourceText || '', modelUsed: 'system:empty_source' };
+    }
+
     const settings = SettingsRepository.getUserSettings(userId);
     const providerType = settings.translation_provider || 'openai_compatible';
     const provider = this.getProviderInstance(providerType);

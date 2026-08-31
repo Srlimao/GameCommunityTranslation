@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useDeferredValue } from 'react';
-import { KeyTranslationItem, TranslationStatus } from '../../types/client_types.ts';
+import { KeyTranslationItem, TreeKeyItem, TranslationStatus } from '../../types/client_types.ts';
 import { ApiClient } from '../../services/api_client.ts';
 import { TranslationRowItem } from './TranslationRowItem.tsx';
 import { KeyTreeExplorer } from './KeyTreeExplorer.tsx';
@@ -23,6 +23,8 @@ export const TranslationTable: React.FC<TranslationTableProps> = ({
   onTranslateSingle,
 }) => {
   const [pageItems, setPageItems] = useState<KeyTranslationItem[]>([]);
+  const [treeItems, setTreeItems] = useState<TreeKeyItem[]>([]);
+  const [isLoadingTree, setIsLoadingTree] = useState(false);
   const [totalCount, setTotalCount] = useState(totalKeys || 0);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
@@ -35,6 +37,25 @@ export const TranslationTable: React.FC<TranslationTableProps> = ({
   const [pageSize, setPageSize] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
 
+  // Load complete lightweight key tree across the entire dataset
+  const loadTree = useCallback(async () => {
+    if (!gameId || !languageCode) return;
+    setIsLoadingTree(true);
+    try {
+      const items = await ApiClient.getTreeItems(gameId, languageCode);
+      setTreeItems(items);
+    } catch (err) {
+      console.error('Failed to load tree items:', err);
+    } finally {
+      setIsLoadingTree(false);
+    }
+  }, [gameId, languageCode]);
+
+  useEffect(() => {
+    loadTree();
+  }, [loadTree]);
+
+  // Load top-50 (or paginated slice) for the active selected prefix / filters
   const fetchPage = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -67,12 +88,19 @@ export const TranslationTable: React.FC<TranslationTableProps> = ({
     setPageItems((prev) =>
       prev.map((it) => (it.key_id === keyId ? { ...it, translated_text: text, status: finalStatus } : it))
     );
+    // Instant optimistic update of tree items state so tree percentages update immediately
+    setTreeItems((prev) =>
+      prev.map((it) => (it.key_id === keyId || it.key_path === keyId ? { ...it, translated_text: text, status: finalStatus } : it))
+    );
     await onSaveTranslation(keyId, text, finalStatus, orderIndex);
   };
 
   const handleSingle = async (item: KeyTranslationItem) => {
     const res = await onTranslateSingle(item);
     setPageItems((prev) =>
+      prev.map((it) => (it.key_id === item.key_id ? { ...it, translated_text: res, status: 'ai_translated' } : it))
+    );
+    setTreeItems((prev) =>
       prev.map((it) => (it.key_id === item.key_id ? { ...it, translated_text: res, status: 'ai_translated' } : it))
     );
     return res;
@@ -148,8 +176,9 @@ export const TranslationTable: React.FC<TranslationTableProps> = ({
         {showTreeExplorer && (
           <div className="w-64 sm:w-72 shrink-0 border-r border-[#30363D] overflow-y-auto">
             <KeyTreeExplorer
-              items={pageItems}
+              items={treeItems}
               selectedPrefix={selectedTreePrefix}
+              isLoadingTree={isLoadingTree}
               onSelectPrefix={(prefix) => {
                 setSelectedTreePrefix(prefix);
                 setCurrentPage(1);
@@ -158,7 +187,7 @@ export const TranslationTable: React.FC<TranslationTableProps> = ({
           </div>
         )}
 
-        {/* Rows Container */}
+        {/* Rows Container (Top 50 from selected tree node) */}
         <div className="flex-1 overflow-y-auto divide-y divide-[#30363D] bg-[#0D1117]/50 relative">
           {isLoading && (
             <div className="absolute inset-0 bg-[#0D1117]/40 backdrop-blur-[1px] flex items-center justify-center z-10">
@@ -199,6 +228,11 @@ export const TranslationTable: React.FC<TranslationTableProps> = ({
               Showing <strong className="text-[#E6EDF3]">{startIndex + 1}</strong>–
               <strong className="text-[#E6EDF3]">{Math.min(startIndex + pageSize, totalCount)}</strong> of{' '}
               <strong className="text-[#E6EDF3]">{totalCount}</strong> keys
+              {selectedTreePrefix && (
+                <span className="ml-1.5 text-[#5865F2] font-semibold">
+                  (branch: {selectedTreePrefix})
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-1">
               <span className="text-[11px] text-[#8B949E]">Per page:</span>
@@ -241,3 +275,4 @@ export const TranslationTable: React.FC<TranslationTableProps> = ({
     </div>
   );
 };
+

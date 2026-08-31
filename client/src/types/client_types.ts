@@ -72,6 +72,14 @@ export interface KeyTranslationItem {
   updated_at?: string;
 }
 
+export interface TreeKeyItem {
+  key_path: string;
+  status?: TranslationStatus;
+  translated_text?: string;
+  key_id?: string;
+  order_index?: number;
+}
+
 export interface GlossaryEntry {
   id: string;
   game_id: string;
@@ -132,6 +140,18 @@ export interface TranslationIssue {
   applied?: boolean;
 }
 
+export interface RecentBatchItem {
+  key_path: string;
+  source_text: string;
+  translated_text: string;
+  status: TranslationStatus;
+}
+
+export interface BatchFailedKey {
+  key_path: string;
+  error: string;
+}
+
 export interface BatchProgressData {
   jobId: string;
   gameId: string;
@@ -139,7 +159,15 @@ export interface BatchProgressData {
   status: 'running' | 'paused' | 'completed' | 'cancelled' | 'error';
   total: number;
   completed: number;
+  succeeded: number;
+  failed: number;
   currentKey?: string;
+  scopePrefix?: string | null;
+  keysPerSecond?: number;
+  elapsedSeconds?: number;
+  estimatedRemainingSeconds?: number;
+  recentTranslations?: RecentBatchItem[];
+  failedKeys?: BatchFailedKey[];
   errorMessage?: string;
 }
 

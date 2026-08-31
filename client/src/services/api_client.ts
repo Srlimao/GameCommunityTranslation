@@ -2,6 +2,7 @@ import {
   GameSummary,
   LanguageProgress,
   KeyTranslationItem,
+  TreeKeyItem,
   GlossaryEntry,
   SystemSettings,
   GlossaryCandidate,
@@ -86,6 +87,10 @@ export const ApiClient = {
     return await CloudTranslationsStore.getPaginatedTranslations(params);
   },
 
+  async getTreeItems(gameId: string, langCode: string): Promise<TreeKeyItem[]> {
+    return await CloudTranslationsStore.getTreeItems(gameId, langCode);
+  },
+
   async importPartialTranslations(
     gameId: string,
     languageCode: string,
@@ -151,6 +156,8 @@ export const ApiClient = {
     languageCode: string;
     onlyUntranslated?: boolean;
     customInstructions?: string;
+    scopePrefix?: string | null;
+    concurrency?: number;
   }): Promise<string> {
     const game = await this.getGame(params.gameId);
     const targetLang = game.languages?.find((l) => l.language_code === params.languageCode);
@@ -158,11 +165,22 @@ export const ApiClient = {
     const glossary = await CloudGlossaryStore.getGlossary(params.gameId, params.languageCode);
     const settings = await CloudSettingsStore.getSettings();
 
-    const itemsToTranslate = params.onlyUntranslated
+    let itemsToTranslate = params.onlyUntranslated
       ? allItems.filter((i) => !i.translated_text || i.status === 'untranslated')
       : allItems;
 
+    if (params.scopePrefix) {
+      const pLower = params.scopePrefix.toLowerCase();
+      itemsToTranslate = itemsToTranslate.filter((i) => {
+        let k = i.key_path.toLowerCase();
+        if (k.startsWith('$$$') && k.endsWith('$$')) k = k.slice(3, -2);
+        return k.startsWith(pLower) || k.startsWith(`.${pLower}`) || k.startsWith(`/${pLower}`) || k.startsWith(`:${pLower}`);
+      });
+    }
+
     const jobId = `job_${Date.now()}`;
+    const dirtyChunks = new Map<string, any>();
+
     BrowserBatchQueue.runBatch({
       jobId,
       gameId: params.gameId,
@@ -175,19 +193,39 @@ export const ApiClient = {
       glossary,
       settings,
       customInstructions: params.customInstructions,
-      onProgress: () => {},
+      scopePrefix: params.scopePrefix,
+      concurrency: params.concurrency,
       onItemUpdated: async (item) => {
-        await this.updateTranslationItem({
+        const res = await this.updateTranslationItem({
           key_id: item.key_id,
           language_id: item.language_id,
+          game_id: params.gameId,
+          language_code: params.languageCode,
+          order_index: item.order_index,
           translated_text: item.translated_text,
           status: item.status,
           model_used: item.model_used,
         });
+        if (res.langProgress) {
+          // Progress updated in IDB
+        }
+      },
+      onFlushChunks: async () => {
+        // Periodic background flush handler
       },
     }).catch((err) => console.error('Batch error:', err));
 
     return jobId;
+  },
+
+  async pauseBatch(jobId: string): Promise<boolean> {
+    BrowserBatchQueue.pauseJob(jobId);
+    return true;
+  },
+
+  async resumeBatch(jobId: string): Promise<boolean> {
+    BrowserBatchQueue.resumeJob(jobId);
+    return true;
   },
 
   async cancelBatch(jobId: string): Promise<boolean> {

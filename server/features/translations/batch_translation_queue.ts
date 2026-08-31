@@ -131,6 +131,20 @@ export class BatchTranslationQueue extends EventEmitter {
         jobState.progress.currentKey = item.key_path;
         this.emit('progress', jobState.progress);
 
+        if (!item.source_text || !item.source_text.trim()) {
+          TranslationsRepository.updateTranslation({
+            keyId: item.key_id,
+            languageId: targetLang.language_id,
+            translatedText: item.source_text || '',
+            status: 'ai_translated',
+            modelUsed: 'system:empty_source',
+            userId,
+          });
+          jobState.progress.completed++;
+          this.emit('progress', jobState.progress);
+          continue;
+        }
+
         try {
           const { text: translated, modelUsed } = await AIService.translate({
             gameName: game.name,

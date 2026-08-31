@@ -1,6 +1,6 @@
 import React from 'react';
 import { GameSummary, LanguageProgress, BatchProgressData } from '../../types/client_types.ts';
-import { Globe2, Plus, Upload, Download, Sparkles, Loader2, StopCircle, FileUp } from 'lucide-react';
+import { Globe2, Plus, Upload, Download, Sparkles, Loader2, StopCircle, Play, Pause, FileUp } from 'lucide-react';
 
 interface TranslationTopBarProps {
   game: GameSummary;
@@ -14,6 +14,8 @@ interface TranslationTopBarProps {
   onOpenBatch: () => void;
   activeBatch: BatchProgressData | null;
   onStopBatch: () => void;
+  onPauseBatch?: () => void;
+  onResumeBatch?: () => void;
 }
 
 export const TranslationTopBar: React.FC<TranslationTopBarProps> = ({
@@ -28,7 +30,11 @@ export const TranslationTopBar: React.FC<TranslationTopBarProps> = ({
   onOpenBatch,
   activeBatch,
   onStopBatch,
+  onPauseBatch,
+  onResumeBatch,
 }) => {
+  const isBatchActive = activeBatch && (activeBatch.status === 'running' || activeBatch.status === 'paused');
+
   return (
     <div className="space-y-2 font-mono">
       {/* Top Language Bar & Main Actions */}
@@ -111,16 +117,16 @@ export const TranslationTopBar: React.FC<TranslationTopBarProps> = ({
               <button
                 onClick={onOpenBatch}
                 className={`flex items-center gap-1 px-3 py-1 text-xs font-bold border transition-colors cursor-pointer ${
-                  activeBatch?.status === 'running'
+                  isBatchActive
                     ? 'bg-[#E5534B] hover:bg-[#F85149] text-white border-[#E5534B] animate-pulse'
                     : 'bg-[#5865F2] hover:bg-[#4C6EF5] text-white border-[#5865F2]'
                 }`}
               >
-                {activeBatch?.status === 'running' ? (
+                {isBatchActive ? (
                   <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <Loader2 className={`w-3.5 h-3.5 ${activeBatch?.status === 'running' ? 'animate-spin' : ''}`} />
                     <span>
-                      TRANSLATING... ({activeBatch.total > 0 ? Math.round((activeBatch.completed / activeBatch.total) * 100) : 0}%)
+                      {activeBatch?.status === 'paused' ? 'PAUSED' : 'TRANSLATING...'} ({activeBatch?.total && activeBatch.total > 0 ? Math.round((activeBatch.completed / activeBatch.total) * 100) : 0}%)
                     </span>
                   </>
                 ) : (
@@ -136,18 +142,23 @@ export const TranslationTopBar: React.FC<TranslationTopBarProps> = ({
       </div>
 
       {/* Active Batch Floating Banner Alert */}
-      {activeBatch && activeBatch.status === 'running' && (
+      {isBatchActive && activeBatch && (
         <div className="bg-[#10141D] border border-[#5865F2] p-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 flex-1 min-w-0">
-            <Loader2 className="w-4 h-4 text-[#5865F2] animate-spin shrink-0" />
+            <Loader2 className={`w-4 h-4 text-[#5865F2] shrink-0 ${activeBatch.status === 'running' ? 'animate-spin' : ''}`} />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 text-xs">
-                <span className="font-bold uppercase tracking-wider text-[#5865F2]">
-                  BATCH QUEUE RUNNING
+                <span className={`font-bold uppercase tracking-wider ${activeBatch.status === 'paused' ? 'text-[#D29922]' : 'text-[#5865F2]'}`}>
+                  {activeBatch.status === 'paused' ? 'BATCH QUEUE PAUSED' : 'BATCH QUEUE RUNNING'}
                 </span>
                 <span className="font-mono text-[#E6EDF3]">
                   {activeBatch.completed} / {activeBatch.total} ({activeBatch.total > 0 ? Math.round((activeBatch.completed / activeBatch.total) * 100) : 0}%)
                 </span>
+                {activeBatch.keysPerSecond ? (
+                  <span className="text-[10px] text-[#8B949E]">
+                    ({activeBatch.keysPerSecond} keys/s)
+                  </span>
+                ) : null}
               </div>
               {activeBatch.currentKey && (
                 <p className="text-[10px] text-[#8B949E] font-mono truncate mt-0.5">
@@ -158,13 +169,37 @@ export const TranslationTopBar: React.FC<TranslationTopBarProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
+            {activeBatch.status === 'running' && onPauseBatch && (
+              <button
+                type="button"
+                onClick={onPauseBatch}
+                className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold bg-[#D29922]/20 hover:bg-[#D29922]/30 text-[#D29922] border border-[#D29922] transition-colors"
+                title="Pause Batch"
+              >
+                <Pause className="w-3.5 h-3.5" />
+                <span>PAUSE</span>
+              </button>
+            )}
+
+            {activeBatch.status === 'paused' && onResumeBatch && (
+              <button
+                type="button"
+                onClick={onResumeBatch}
+                className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold bg-[#5865F2]/20 hover:bg-[#5865F2]/30 text-[#5865F2] border border-[#5865F2] transition-colors"
+                title="Resume Batch"
+              >
+                <Play className="w-3.5 h-3.5" />
+                <span>RESUME</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={onStopBatch}
               className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold bg-[#E5534B] hover:bg-[#F85149] text-white border border-[#E5534B] transition-colors"
             >
               <StopCircle className="w-3.5 h-3.5" />
-              <span>STOP BATCH</span>
+              <span>STOP</span>
             </button>
             <button
               type="button"
@@ -179,3 +214,4 @@ export const TranslationTopBar: React.FC<TranslationTopBarProps> = ({
     </div>
   );
 };
+
