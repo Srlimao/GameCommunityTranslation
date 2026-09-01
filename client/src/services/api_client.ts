@@ -90,7 +90,7 @@ export const ApiClient = {
   },
 
   async getPaginatedTranslations(params: {
-    gameId: string; langCode: string; page: number; pageSize: number; status?: string; search?: string; prefix?: string | null;
+    gameId: string; langCode: string; page: number; pageSize: number; status?: string; search?: string; prefix?: string | null; hideEmptySource?: boolean;
   }) {
     return await CloudTranslationsStore.getPaginatedTranslations(params);
   },

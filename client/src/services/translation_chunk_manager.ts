@@ -147,6 +147,7 @@ export class TranslationChunkManager {
         for (const item of chunk.items) {
           treeItems.push({
             key_path: item.key_path,
+            source_text: item.source_text,
             status: item.status,
             translated_text: item.translated_text,
             key_id: item.key_id,

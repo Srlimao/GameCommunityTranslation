@@ -92,10 +92,11 @@ export class CloudTranslationsStore {
     status?: string;
     search?: string;
     prefix?: string | null;
+    hideEmptySource?: boolean;
   }): Promise<PaginatedResult> {
-    const { gameId, langCode, page, pageSize, status, search, prefix } = params;
+    const { gameId, langCode, page, pageSize, status, search, prefix, hideEmptySource } = params;
 
-    if ((search && search.trim()) || (status && status !== 'all') || prefix) {
+    if ((search && search.trim()) || (status && status !== 'all') || prefix || hideEmptySource) {
       await TranslationChunkManager.ensureAllChunksCached(gameId, langCode);
       let cached = await LocalCacheStore.getAll<TranslationChunkDoc>('translation_chunks');
       let list: KeyTranslationItem[] = [];
@@ -123,6 +124,9 @@ export class CloudTranslationsStore {
         }
       }
 
+      if (hideEmptySource) {
+        list = list.filter((i) => Boolean(i.source_text && i.source_text.trim()));
+      }
       if (prefix) {
         const pLower = prefix.toLowerCase();
         list = list.filter((i) => {

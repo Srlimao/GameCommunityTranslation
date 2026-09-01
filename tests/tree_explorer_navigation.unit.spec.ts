@@ -1,4 +1,4 @@
-﻿import { describe, it, beforeEach } from 'node:test';
+import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { v4 as uuidv4 } from 'uuid';
 import { KeyTranslationItem } from '../client/src/types/client_types.ts';
@@ -196,5 +196,80 @@ describe('Tree Explorer & Top-50 Paginated Navigation Tests', () => {
       prefix: 'quests.act1',
     });
     assert.strictEqual(page3.items.length, 20, 'Page 3 should return remaining 20 items');
+  });
+
+  it('3. should filter out empty or whitespace-only source entries when hideEmptySource is true', async () => {
+    const testItems: KeyTranslationItem[] = [
+      {
+        id: '1',
+        key_id: 'k1',
+        key_path: 'dialogue.greeting',
+        source_text: 'Hello, traveler!',
+        order_index: 0,
+        language_id: 'lang_1',
+        language_code: langCode,
+        translated_text: 'Hallo, Reisender!',
+        status: 'manual_translated',
+        updated_at: new Date().toISOString(),
+      },
+      {
+        id: '2',
+        key_id: 'k2',
+        key_path: 'dialogue.blank1',
+        source_text: '',
+        order_index: 1,
+        language_id: 'lang_1',
+        language_code: langCode,
+        translated_text: '',
+        status: 'ai_translated',
+        updated_at: new Date().toISOString(),
+      },
+      {
+        id: '3',
+        key_id: 'k3',
+        key_path: 'dialogue.whitespace',
+        source_text: '   \n  ',
+        order_index: 2,
+        language_id: 'lang_1',
+        language_code: langCode,
+        translated_text: '',
+        status: 'untranslated',
+        updated_at: new Date().toISOString(),
+      },
+      {
+        id: '4',
+        key_id: 'k4',
+        key_path: 'dialogue.farewell',
+        source_text: 'Goodbye!',
+        order_index: 3,
+        language_id: 'lang_1',
+        language_code: langCode,
+        translated_text: 'Auf Wiedersehen!',
+        status: 'manual_translated',
+        updated_at: new Date().toISOString(),
+      },
+    ];
+
+    await TranslationChunkManager.saveItemsInChunks(gameId, langCode, testItems);
+
+    const allRes = await CloudTranslationsStore.getPaginatedTranslations({
+      gameId,
+      langCode,
+      page: 1,
+      pageSize: 10,
+      hideEmptySource: false,
+    });
+    assert.strictEqual(allRes.totalCount, 4, 'Should include all 4 items when hideEmptySource is false');
+
+    const filteredRes = await CloudTranslationsStore.getPaginatedTranslations({
+      gameId,
+      langCode,
+      page: 1,
+      pageSize: 10,
+      hideEmptySource: true,
+    });
+    assert.strictEqual(filteredRes.totalCount, 2, 'Should only return 2 non-empty items when hideEmptySource is true');
+    assert.strictEqual(filteredRes.items[0].key_path, 'dialogue.greeting');
+    assert.strictEqual(filteredRes.items[1].key_path, 'dialogue.farewell');
   });
 });

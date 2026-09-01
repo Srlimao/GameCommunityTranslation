@@ -74,6 +74,7 @@ export interface KeyTranslationItem {
 
 export interface TreeKeyItem {
   key_path: string;
+  source_text?: string;
   status?: TranslationStatus;
   translated_text?: string;
   key_id?: string;
