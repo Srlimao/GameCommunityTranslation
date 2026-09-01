@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useDeferredValue } from 'react';
 import { KeyTranslationItem, TreeKeyItem, TranslationStatus } from '../../types/client_types.ts';
 import { ApiClient } from '../../services/api_client.ts';
+import { SseTranslationStream } from '../../services/sse_translation_stream.ts';
 import { TranslationRowItem } from './TranslationRowItem.tsx';
 import { KeyTreeExplorer } from './KeyTreeExplorer.tsx';
 import { Search, ChevronLeft, ChevronRight, PanelLeftClose, PanelLeftOpen, Loader2 } from 'lucide-react';
@@ -9,6 +10,7 @@ interface TranslationTableProps {
   gameId: string;
   languageCode: string;
   totalKeys?: number;
+  refreshKey?: number;
   onSaveTranslation: (keyId: string, text: string, status?: TranslationStatus, orderIndex?: number) => Promise<void>;
   onTranslateSingle: (item: KeyTranslationItem) => Promise<string>;
 }
@@ -19,6 +21,7 @@ export const TranslationTable: React.FC<TranslationTableProps> = ({
   gameId,
   languageCode,
   totalKeys,
+  refreshKey,
   onSaveTranslation,
   onTranslateSingle,
 }) => {
@@ -49,7 +52,7 @@ export const TranslationTable: React.FC<TranslationTableProps> = ({
     } finally {
       setIsLoadingTree(false);
     }
-  }, [gameId, languageCode]);
+  }, [gameId, languageCode, refreshKey]);
 
   useEffect(() => {
     loadTree();
@@ -76,11 +79,24 @@ export const TranslationTable: React.FC<TranslationTableProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [gameId, languageCode, currentPage, pageSize, statusFilter, deferredSearch, selectedTreePrefix]);
+  }, [gameId, languageCode, currentPage, pageSize, statusFilter, deferredSearch, selectedTreePrefix, refreshKey]);
 
   useEffect(() => {
     fetchPage();
   }, [fetchPage]);
+
+  // Auto-reload tree and rows when batch finishes or syncs
+  useEffect(() => {
+    const unsub = SseTranslationStream.onProgress((data) => {
+      if ((data.gameId === gameId && data.languageCode === languageCode) || !data.gameId) {
+        if (data.status === 'completed' || data.status === 'cancelled') {
+          loadTree();
+          fetchPage();
+        }
+      }
+    });
+    return () => { unsub(); };
+  }, [gameId, languageCode, loadTree, fetchPage]);
 
   const handleSave = async (keyId: string, text: string, status?: TranslationStatus, orderIndex?: number) => {
     const finalStatus = status || (text.trim() ? 'manual_translated' : 'untranslated');

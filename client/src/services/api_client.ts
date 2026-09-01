@@ -81,6 +81,14 @@ export const ApiClient = {
     return await CloudTranslationsStore.getTranslations(gameId, languageCode, filters, onSync);
   },
 
+  async syncTranslations(
+    gameId: string,
+    languageCode: string,
+    onSync?: (sync: { loaded: number; total: number }) => void
+  ): Promise<void> {
+    await CloudTranslationsStore.syncFromRemote(gameId, languageCode, onSync);
+  },
+
   async getPaginatedTranslations(params: {
     gameId: string; langCode: string; page: number; pageSize: number; status?: string; search?: string; prefix?: string | null;
   }) {

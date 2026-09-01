@@ -51,13 +51,40 @@ export class TranslationChunkManager {
     await RemoteJsonDb.upsertDoc(COLLECTION_TRANSLATIONS, `${gameId}_${langCode}_meta`, metaDoc);
   }
 
-  static async getChunk(gameId: string, langCode: string, chunkIndex: number): Promise<TranslationChunkDoc | null> {
+  static async getChunk(
+    gameId: string,
+    langCode: string,
+    chunkIndex: number,
+    forceRemote: boolean = false
+  ): Promise<TranslationChunkDoc | null> {
     const chunkId = `${gameId}_${langCode}_chunk_${chunkIndex}`;
-    const cached = await LocalCacheStore.get<TranslationChunkDoc>('translation_chunks', chunkId);
-    if (cached) return cached;
+    if (!forceRemote) {
+      const cached = await LocalCacheStore.get<TranslationChunkDoc>('translation_chunks', chunkId);
+      if (cached) return cached;
+    }
     const doc = await RemoteJsonDb.getDoc<TranslationChunkDoc>(COLLECTION_TRANSLATIONS, chunkId);
     if (doc) await LocalCacheStore.set('translation_chunks', doc);
     return doc;
+  }
+
+  static async syncFromRemote(
+    gameId: string,
+    langCode: string,
+    onSync?: (sync: { loaded: number; total: number }) => void
+  ): Promise<TranslationChunkDoc[]> {
+    const meta = await RemoteJsonDb.getDoc<{ totalChunks: number }>(COLLECTION_TRANSLATIONS, `${gameId}_${langCode}_meta`);
+    const totalChunks = meta?.totalChunks || 1;
+    const chunkMap = new Map<number, TranslationChunkDoc>();
+    let loaded = 0;
+
+    await runWithConcurrency(Array.from({ length: totalChunks }, (_, i) => i), CONCURRENT_CHUNKS, async (i) => {
+      const doc = await this.getChunk(gameId, langCode, i, true);
+      if (doc) chunkMap.set(i, doc);
+      loaded++;
+      if (onSync) onSync({ loaded, total: totalChunks });
+    });
+
+    return Array.from(chunkMap.values()).sort((a, b) => a.chunk_index - b.chunk_index);
   }
 
   static async ensureAllChunksCached(

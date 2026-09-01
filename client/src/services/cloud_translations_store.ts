@@ -76,6 +76,14 @@ export class CloudTranslationsStore {
     return await TranslationChunkManager.getTreeItems(gameId, langCode);
   }
 
+  static async syncFromRemote(
+    gameId: string,
+    langCode: string,
+    onSync?: (sync: { loaded: number; total: number }) => void
+  ): Promise<TranslationChunkDoc[]> {
+    return await TranslationChunkManager.syncFromRemote(gameId, langCode, onSync);
+  }
+
   static async getPaginatedTranslations(params: {
     gameId: string;
     langCode: string;
@@ -89,7 +97,7 @@ export class CloudTranslationsStore {
 
     if ((search && search.trim()) || (status && status !== 'all') || prefix) {
       await TranslationChunkManager.ensureAllChunksCached(gameId, langCode);
-      const cached = await LocalCacheStore.getAll<TranslationChunkDoc>('translation_chunks');
+      let cached = await LocalCacheStore.getAll<TranslationChunkDoc>('translation_chunks');
       let list: KeyTranslationItem[] = [];
       cached
         .filter((c) => c && c.game_id === gameId && c.language_code === langCode)
@@ -97,6 +105,23 @@ export class CloudTranslationsStore {
         .forEach((c) => {
           if (c.items) list.push(...c.items);
         });
+
+      // Stale cache detection: if filtering by a translated status but local cache has 0 matches,
+      // verify against remote game progress and sync fresh chunks if needed
+      if (status && status !== 'all' && status !== 'untranslated') {
+        const hasStatusInLocal = list.some((i) => i.status === status);
+        if (!hasStatusInLocal) {
+          const game = await CloudGamesStore.getGame(gameId);
+          const lang = game?.languages?.find((l) => l.language_code === langCode);
+          if (lang && (lang.translated_keys || 0) > 0) {
+            const freshChunks = await TranslationChunkManager.syncFromRemote(gameId, langCode);
+            list = [];
+            freshChunks.forEach((c) => {
+              if (c.items) list.push(...c.items);
+            });
+          }
+        }
+      }
 
       if (prefix) {
         const pLower = prefix.toLowerCase();

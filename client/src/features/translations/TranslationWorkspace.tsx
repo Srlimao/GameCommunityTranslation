@@ -33,6 +33,7 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
   const [isImportJsonOpen, setIsImportJsonOpen] = useState(false);
   const [isImportPartialOpen, setIsImportPartialOpen] = useState(false);
   const [activeBatch, setActiveBatch] = useState<BatchProgressData | null>(null);
+  const [tableRefreshKey, setTableRefreshKey] = useState<number>(0);
   const [glossaryCount, setGlossaryCount] = useState<number>(game.glossaryCount || 0);
   const contextData = useMemo(() => ContextSerializer.parse(game.context_prompt), [game.context_prompt]);
 
@@ -65,12 +66,13 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
     if (!selectedLangCode) return;
     setIsLoading(true);
     try {
-      await ApiClient.getTranslations(game.id, selectedLangCode, undefined, (sync) => {
+      await ApiClient.syncTranslations(game.id, selectedLangCode, (sync) => {
         setBackgroundSync(sync);
       });
       const updatedGame = await ApiClient.getGame(game.id);
       const targetLang = updatedGame?.languages?.find((l) => l.language_code === selectedLangCode);
       if (targetLang) setLiveProgress(targetLang);
+      setTableRefreshKey((k) => k + 1);
     } catch (err) {
       console.error('Failed to sync translations:', err);
     } finally {
@@ -234,6 +236,7 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
             gameId={game.id}
             languageCode={selectedLangCode}
             totalKeys={currentLang.total_keys || game.totalKeys}
+            refreshKey={tableRefreshKey}
             onSaveTranslation={handleSaveTranslation}
             onTranslateSingle={handleTranslateSingle}
           />
