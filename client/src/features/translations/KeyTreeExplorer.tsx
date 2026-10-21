@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback, useDeferredValue } from 'react';
 import { TreeKeyItem, KeyTranslationItem } from '../../types/client_types.ts';
+import { isItemTranslated } from '../../services/translation_chunk_manager.ts';
 import {
   Folder,
   FolderOpen,
@@ -110,7 +111,7 @@ export const KeyTreeExplorer: React.FC<KeyTreeExplorerProps> = ({
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
       root.count++;
-      const isTranslated = Boolean(item.translated_text && item.status !== 'untranslated');
+      const isTranslated = isItemTranslated(item);
       if (isTranslated) root.translatedCount++;
 
       let key = item.key_path;

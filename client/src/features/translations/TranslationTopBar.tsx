@@ -10,6 +10,7 @@ interface TranslationTopBarProps {
   onOpenImportJson: () => void;
   onOpenImportPartialJson?: () => void;
   onExportJson: () => void;
+  isExporting?: boolean;
   onNavigateToGeminiQA: (code: string) => void;
   onOpenBatch: () => void;
   activeBatch: BatchProgressData | null;
@@ -26,6 +27,7 @@ export const TranslationTopBar: React.FC<TranslationTopBarProps> = ({
   onOpenImportJson,
   onOpenImportPartialJson,
   onExportJson,
+  isExporting = false,
   onNavigateToGeminiQA,
   onOpenBatch,
   activeBatch,
@@ -98,11 +100,21 @@ export const TranslationTopBar: React.FC<TranslationTopBarProps> = ({
 
               <button
                 onClick={onExportJson}
-                className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold bg-[#0D1117] hover:bg-[#30363D] text-[#E6EDF3] border border-[#30363D] transition-colors cursor-pointer"
+                disabled={isExporting}
+                className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold bg-[#0D1117] hover:bg-[#30363D] text-[#E6EDF3] border border-[#30363D] transition-colors cursor-pointer disabled:opacity-50"
                 title="Download translated JSON file"
               >
-                <Download className="w-3.5 h-3.5 text-[#3FB950]" />
-                <span>Export JSON</span>
+                {isExporting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-[#3FB950]" />
+                    <span>Exporting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-3.5 h-3.5 text-[#3FB950]" />
+                    <span>Export JSON</span>
+                  </>
+                )}
               </button>
 
               <button

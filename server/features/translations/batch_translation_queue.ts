@@ -138,7 +138,6 @@ export class BatchTranslationQueue extends EventEmitter {
             translatedText: item.source_text || '',
             status: 'ai_translated',
             modelUsed: 'system:empty_source',
-            userId,
           });
           jobState.progress.completed++;
           this.emit('progress', jobState.progress);

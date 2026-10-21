@@ -1,6 +1,7 @@
-import { KeyTranslationItem, TreeKeyItem } from '../types/client_types.ts';
+import { KeyTranslationItem, TreeKeyItem, LanguageProgress } from '../types/client_types.ts';
 import { RemoteJsonDb } from './remote_json_db.ts';
 import { LocalCacheStore } from './local_cache_store.ts';
+import { CloudGamesStore } from './cloud_games_store.ts';
 import { runWithConcurrency } from './concurrency_limiter.ts';
 
 export const COLLECTION_TRANSLATIONS = 'lt_translations';
@@ -21,6 +22,17 @@ export interface PaginatedResult {
   page: number;
   pageSize: number;
   totalPages: number;
+}
+
+export function isItemTranslated(item: {
+  source_text?: string;
+  translated_text?: string;
+  status?: string;
+}): boolean {
+  if (!item.status || item.status === 'untranslated') return false;
+  if (Boolean(item.translated_text && item.translated_text.trim().length > 0)) return true;
+  // Empty source strings that were explicitly processed/approved count as completed
+  return Boolean(!item.source_text || item.source_text.trim().length === 0);
 }
 
 export class TranslationChunkManager {
@@ -158,6 +170,60 @@ export class TranslationChunkManager {
     }
 
     return treeItems;
+  }
+
+  static async reconcileLanguageProgress(
+    gameId: string,
+    langCode: string,
+    providedChunks?: TranslationChunkDoc[]
+  ): Promise<LanguageProgress | undefined> {
+    let chunks = providedChunks;
+    if (!chunks) {
+      const cached = await LocalCacheStore.getAll<TranslationChunkDoc>('translation_chunks');
+      chunks = cached.filter((c) => c && c.game_id === gameId && c.language_code === langCode);
+      if (chunks.length === 0) return undefined;
+    }
+
+    let totalItems = 0;
+    let translatedCount = 0;
+    let approvedCount = 0;
+
+    for (const chunk of chunks) {
+      for (const item of chunk.items || []) {
+        totalItems++;
+        if (isItemTranslated(item)) translatedCount++;
+        if (item.status === 'approved') approvedCount++;
+      }
+    }
+
+    const game = await CloudGamesStore.getGame(gameId);
+    if (!game || !game.languages) return undefined;
+
+    const lang = game.languages.find((l) => l.language_code === langCode);
+    if (!lang) return undefined;
+
+    const total = totalItems || lang.total_keys || game.totalKeys || 0;
+    const progress = total > 0 ? Math.round((translatedCount / total) * 100) : 0;
+
+    const hasDrift =
+      lang.total_keys !== total ||
+      lang.translated_keys !== translatedCount ||
+      lang.approved_keys !== approvedCount ||
+      lang.progress_percentage !== progress;
+
+    if (hasDrift) {
+      lang.total_keys = total;
+      lang.translated_keys = translatedCount;
+      lang.approved_keys = approvedCount;
+      lang.progress_percentage = progress;
+      if (!game.totalKeys && total > 0) game.totalKeys = total;
+      await CloudGamesStore.updateGame(gameId, {
+        totalKeys: game.totalKeys || total,
+        languages: [...game.languages],
+      });
+    }
+
+    return { ...lang };
   }
 }
 

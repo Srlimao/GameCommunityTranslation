@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { GameSummary, KeyTranslationItem, TranslationStatus, BatchProgressData } from '../../types/client_types.ts';
+import { GameSummary, KeyTranslationItem, TranslationStatus, BatchProgressData, LanguageProgress } from '../../types/client_types.ts';
 import { ApiClient } from '../../services/api_client.ts';
 import { SseTranslationStream } from '../../services/sse_translation_stream.ts';
 import { ContextSerializer } from '../context/contextSerializer.ts';
@@ -32,6 +32,7 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
   const [isBatchOpen, setIsBatchOpen] = useState(false);
   const [isImportJsonOpen, setIsImportJsonOpen] = useState(false);
   const [isImportPartialOpen, setIsImportPartialOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [activeBatch, setActiveBatch] = useState<BatchProgressData | null>(null);
   const [tableRefreshKey, setTableRefreshKey] = useState<number>(0);
   const [glossaryCount, setGlossaryCount] = useState<number>(game.glossaryCount || 0);
@@ -119,21 +120,6 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
     if (!currentLang) return;
     const finalStatus = status || (text.trim() ? 'manual_translated' : 'untranslated');
 
-    setLiveProgress((prev) => {
-      if (!prev) return prev;
-      const isApproved = finalStatus === 'approved';
-      const isTranslated = Boolean(text.trim());
-      const approved = isApproved ? Math.min(prev.total_keys, (prev.approved_keys || 0) + 1) : prev.approved_keys;
-      const translated = isTranslated ? Math.max(prev.translated_keys || 0, (prev.translated_keys || 0) + 1) : prev.translated_keys;
-      const total = prev.total_keys || game.totalKeys || 0;
-      return {
-        ...prev,
-        approved_keys: approved,
-        translated_keys: translated,
-        progress_percentage: total > 0 ? Math.round((translated / total) * 100) : 0,
-      };
-    });
-
     const res = await ApiClient.updateTranslationItem({
       key_id: keyId, language_id: currentLang.language_id, game_id: game.id,
       language_code: selectedLangCode, order_index: orderIndex,
@@ -160,23 +146,26 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
   };
 
   const handleExportJson = async () => {
-    if (!selectedLangCode) return;
+    if (!selectedLangCode || isExporting) return;
+    setIsExporting(true);
     try {
-      const exportMap = await ApiClient.getExportMap(game.id, selectedLangCode);
-      const rawTemplate = game.raw_json_template || '';
+      const localizedJson = await ApiClient.exportJsonWithStructure(game.id, selectedLangCode);
       const { ClientJsonExporter } = await import('../games/utils/client_json_exporter.ts');
-      const localizedJson = ClientJsonExporter.unflattenWithTemplate(exportMap, rawTemplate, game.schema_config);
       ClientJsonExporter.downloadJsonFile(localizedJson, `${game.name}_${selectedLangCode}.json`);
     } catch (err: any) {
       console.error('Export error:', err);
       alert('Failed to export JSON: ' + (err.message || err));
+    } finally {
+      setIsExporting(false);
     }
   };
 
+  const totalKeysCount = liveProgress?.total_keys || game.totalKeys || 0;
+
   const untranslatedCount = useMemo(() => {
     if (!liveProgress) return 0;
-    return Math.max(0, (liveProgress.total_keys || 0) - (liveProgress.translated_keys || 0));
-  }, [liveProgress]);
+    return Math.max(0, totalKeysCount - (liveProgress.translated_keys || 0));
+  }, [liveProgress, totalKeysCount]);
 
   return (
     <div className="space-y-3 font-mono">
@@ -188,6 +177,7 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
         onOpenImportJson={() => setIsImportJsonOpen(true)}
         onOpenImportPartialJson={() => setIsImportPartialOpen(true)}
         onExportJson={handleExportJson}
+        isExporting={isExporting}
         onNavigateToGeminiQA={onNavigateToGeminiQA}
         onOpenBatch={() => setIsBatchOpen(true)}
         activeBatch={activeBatch}
@@ -235,10 +225,13 @@ export const TranslationWorkspace: React.FC<TranslationWorkspaceProps> = ({
           <TranslationTable
             gameId={game.id}
             languageCode={selectedLangCode}
-            totalKeys={currentLang.total_keys || game.totalKeys}
+            totalKeys={totalKeysCount}
             refreshKey={tableRefreshKey}
             onSaveTranslation={handleSaveTranslation}
             onTranslateSingle={handleTranslateSingle}
+            onProgressReconciled={(reconciled) => {
+              if (reconciled) setLiveProgress(reconciled);
+            }}
           />
         </div>
       ) : (

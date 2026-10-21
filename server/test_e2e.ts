@@ -16,6 +16,8 @@ async function runVerification() {
   });
   console.log('✅ Game created:', game.id, game.name);
 
+  try {
+
   // 2. Import sample nested JSON
   const sampleJson = {
     ui: {

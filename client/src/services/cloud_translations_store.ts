@@ -13,6 +13,7 @@ import {
   CONCURRENT_CHUNKS,
   TranslationChunkDoc,
   PaginatedResult,
+  isItemTranslated,
 } from './translation_chunk_manager.ts';
 
 export class CloudTranslationsStore {
@@ -42,11 +43,16 @@ export class CloudTranslationsStore {
       await TranslationChunkManager.saveItemsInChunks(gameId, lang.language_code, items, (c, t) => {
         if (onProgress) onProgress(lIdx * t + c, targetLangs.length * t);
       });
+      lang.total_keys = keys.length;
+      lang.translated_keys = 0;
+      lang.approved_keys = 0;
+      lang.progress_percentage = 0;
     }
 
     if (rawJsonTemplate) await CloudGamesStore.saveTemplate(gameId, rawJsonTemplate);
     await CloudGamesStore.updateGame(gameId, {
       totalKeys: keys.length, whitelist_tags: mergedTags, schema_config: schemaConfig || game.schema_config,
+      languages: targetLangs,
     });
     return keys.length;
   }
@@ -81,7 +87,17 @@ export class CloudTranslationsStore {
     langCode: string,
     onSync?: (sync: { loaded: number; total: number }) => void
   ): Promise<TranslationChunkDoc[]> {
-    return await TranslationChunkManager.syncFromRemote(gameId, langCode, onSync);
+    const chunks = await TranslationChunkManager.syncFromRemote(gameId, langCode, onSync);
+    await TranslationChunkManager.reconcileLanguageProgress(gameId, langCode, chunks);
+    return chunks;
+  }
+
+  static async reconcileLanguageProgress(
+    gameId: string,
+    langCode: string,
+    providedChunks?: TranslationChunkDoc[]
+  ): Promise<LanguageProgress | undefined> {
+    return await TranslationChunkManager.reconcileLanguageProgress(gameId, langCode, providedChunks);
   }
 
   static async getPaginatedTranslations(params: {
@@ -136,7 +152,7 @@ export class CloudTranslationsStore {
         });
       }
       if (status && status !== 'all') {
-        list = status === 'untranslated' ? list.filter((i) => i.status === 'untranslated' || !i.translated_text) : list.filter((i) => i.status === status);
+        list = status === 'untranslated' ? list.filter((i) => !isItemTranslated(i)) : list.filter((i) => i.status === status && isItemTranslated(i));
       }
       if (search && search.trim()) {
         const q = search.trim().toLowerCase();
@@ -179,7 +195,7 @@ export class CloudTranslationsStore {
     let all: KeyTranslationItem[] = [];
     for (let i = 0; i < totalChunks; i++) { const it = chunkMap.get(i); if (it) all.push(...it); }
     if (filters?.status && filters.status !== 'all') {
-      all = filters.status === 'untranslated' ? all.filter(i => i.status === 'untranslated' || !i.translated_text) : all.filter(i => i.status === filters.status);
+      all = filters.status === 'untranslated' ? all.filter(i => !isItemTranslated(i)) : all.filter(i => i.status === filters.status && isItemTranslated(i));
     }
     if (filters?.search) {
       const q = filters.search.toLowerCase();
@@ -239,19 +255,23 @@ export class CloudTranslationsStore {
 
     // 3. Calculate state deltas
     const oldStatus = targetItem.status || 'untranslated';
-    const oldHasText = Boolean(targetItem.translated_text && targetItem.translated_text.trim().length > 0);
+    const oldTranslated = isItemTranslated(targetItem);
 
-    const newStatus = params.status || (params.translated_text.trim() ? 'manual_translated' : 'untranslated');
-    const newHasText = Boolean(params.translated_text.trim().length > 0);
-
-    const deltaTranslated = (newHasText ? 1 : 0) - (oldHasText ? 1 : 0);
-    const deltaApproved = (newStatus === 'approved' ? 1 : 0) - (oldStatus === 'approved' ? 1 : 0);
+    const isEmptySource = !targetItem.source_text || !targetItem.source_text.trim();
+    const hasNewText = Boolean(params.translated_text && params.translated_text.trim().length > 0);
+    const newStatus: TranslationStatus = hasNewText
+      ? (params.status || 'manual_translated')
+      : (isEmptySource && params.status && params.status !== 'untranslated' ? params.status : 'untranslated');
 
     // Apply mutations to the item
     targetItem.translated_text = params.translated_text;
     targetItem.status = newStatus;
     if (params.model_used) targetItem.model_used = params.model_used;
     targetItem.updated_at = new Date().toISOString();
+
+    const newTranslated = isItemTranslated(targetItem);
+    const deltaTranslated = (newTranslated ? 1 : 0) - (oldTranslated ? 1 : 0);
+    const deltaApproved = (newStatus === 'approved' ? 1 : 0) - (oldStatus === 'approved' ? 1 : 0);
 
     // 4. Instant IndexedDB write (< 15ms)
     await LocalCacheStore.set('translation_chunks', targetChunk);
@@ -298,8 +318,10 @@ export class CloudTranslationsStore {
     gameId: string,
     langCode: string,
     updates: Array<{ key_path?: string; key_id?: string; translated_text: string; status?: TranslationStatus }>,
-    onProgress?: (completed: number, total: number) => void
+    onProgress?: (completed: number, total: number) => void,
+    options?: { overwriteExisting?: boolean }
   ): Promise<number> {
+    const overwrite = options?.overwriteExisting ?? true;
     const updateMap = new Map<string, { text: string; status?: TranslationStatus }>();
     for (const u of updates) {
       const val = { text: u.translated_text, status: u.status };
@@ -311,16 +333,19 @@ export class CloudTranslationsStore {
     const meta = await RemoteJsonDb.getDoc<{ totalChunks: number }>(COLLECTION_TRANSLATIONS, `${gameId}_${langCode}_meta`);
     const totalChunks = meta?.totalChunks || 1;
     const modifiedChunks: TranslationChunkDoc[] = [];
+    const allChunks: TranslationChunkDoc[] = [];
     let updatedCount = 0;
 
     for (let i = 0; i < totalChunks; i++) {
       const chunk = await this.getChunk(gameId, langCode, i);
       if (!chunk?.items) continue;
+      allChunks.push(chunk);
 
       let chunkModified = false;
       for (const item of chunk.items) {
         const match = updateMap.get(item.key_path) || updateMap.get(item.key_id);
         if (match && match.text.trim()) {
+          if (!overwrite && isItemTranslated(item)) continue;
           item.translated_text = match.text;
           item.status = match.status || 'manual_translated';
           item.updated_at = new Date().toISOString();
@@ -338,6 +363,7 @@ export class CloudTranslationsStore {
       await runWithConcurrency(modifiedChunks, CONCURRENT_CHUNKS, async (chunk) => {
         await RemoteJsonDb.upsertDoc(COLLECTION_TRANSLATIONS, chunk.chunk_id, chunk);
       }, onProgress);
+      await this.reconcileLanguageProgress(gameId, langCode, allChunks);
     }
     return updatedCount;
   }
@@ -427,19 +453,13 @@ export class CloudTranslationsStore {
       .filter(e => e.text && e.text.trim())
       .map(e => ({ key_path: e.keyPath, translated_text: e.text, status: options?.status }));
 
-    const updatedCount = await this.updateMultipleTranslationItems(gameId, langCode, updates, options?.onProgress);
-
-    if (game.languages?.length) {
-      const targetLang = game.languages.find(l => l.language_code === langCode);
-      const total = targetLang?.total_keys || game.totalKeys || 0;
-      const translated = Math.min(total, (targetLang?.translated_keys || 0) + updatedCount);
-      const progress = total > 0 ? Math.round((translated / total) * 100) : 0;
-      const updatedLangs = game.languages.map(l => l.language_code === langCode
-        ? { ...l, translated_keys: translated, progress_percentage: progress }
-        : l
-      );
-      await CloudGamesStore.updateGame(gameId, { languages: updatedLangs });
-    }
+    const updatedCount = await this.updateMultipleTranslationItems(
+      gameId,
+      langCode,
+      updates,
+      options?.onProgress,
+      { overwriteExisting: options?.overwriteExisting ?? true }
+    );
 
     return { updatedCount, matchedCount: updatedCount, totalImported: importedEntries.length };
   }

@@ -11,9 +11,9 @@ interface GlossaryImportModalProps {
   onImported: () => void;
 }
 
-const VALID_CATEGORIES = ['Character', 'Item', 'Location', 'UI', 'Lore', 'General'];
+const VALID_CATEGORIES = ['Character', 'Item', 'Location', 'UI', 'Lore', 'General'] as const;
 
-function normalizeCategory(raw?: string): string {
+function normalizeCategory(raw?: string): GlossaryEntry['category'] {
   if (!raw) return 'General';
   const match = VALID_CATEGORIES.find((c) => c.toLowerCase() === raw.trim().toLowerCase());
   if (match) return match;

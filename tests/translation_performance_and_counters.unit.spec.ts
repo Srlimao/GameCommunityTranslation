@@ -2,11 +2,12 @@ import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { v4 as uuidv4 } from 'uuid';
 import { KeyTranslationItem, LanguageProgress, TranslationStatus } from '../client/src/types/client_types.ts';
-import { CHUNK_SIZE, TranslationChunkDoc } from '../client/src/services/translation_chunk_manager.ts';
+import { CHUNK_SIZE, TranslationChunkDoc, isItemTranslated, TranslationChunkManager } from '../client/src/services/translation_chunk_manager.ts';
 import { CloudTranslationsStore } from '../client/src/services/cloud_translations_store.ts';
 import { LocalCacheStore } from '../client/src/services/local_cache_store.ts';
 import { CloudGamesStore } from '../client/src/services/cloud_games_store.ts';
 import { RemoteJsonDb } from '../client/src/services/remote_json_db.ts';
+import { ClientJsonExporter } from '../client/src/features/games/utils/client_json_exporter.ts';
 
 // In-Memory Storage Engine for Unit Testing
 const inMemoryCache = new Map<string, Map<string, any>>();
@@ -386,6 +387,92 @@ describe('Translation Optimization & Counter Unit Tests', () => {
       assert.ok(ptLang);
       assert.strictEqual(ptLang.approved_keys, 100);
       assert.strictEqual(ptLang.translated_keys, 100);
+    });
+  });
+
+  describe('4. Missing vs Untranslated Parity & Export Structure Tests', () => {
+    it('should ensure Missing (total - translated) exactly matches UNTRANSLATED filter count including empty sources', async () => {
+      const items: KeyTranslationItem[] = [
+        // 1. Normal untranslated
+        {
+          id: '1', key_id: 'k1', key_path: 'dlg.1', source_text: 'Hello',
+          translated_text: '', status: 'untranslated', order_index: 0,
+          language_id: testLangId, language_code: testLangCode, updated_at: '',
+        },
+        // 2. Normal AI translated
+        {
+          id: '2', key_id: 'k2', key_path: 'dlg.2', source_text: 'World',
+          translated_text: 'Mundo', status: 'ai_translated', order_index: 1,
+          language_id: testLangId, language_code: testLangCode, updated_at: '',
+        },
+        // 3. Empty source fast-pathed by AI batch (source='', translated='', status='ai_translated')
+        {
+          id: '3', key_id: 'k3', key_path: 'dlg.empty_done', source_text: '',
+          translated_text: '', status: 'ai_translated', order_index: 2,
+          language_id: testLangId, language_code: testLangCode, updated_at: '',
+        },
+        // 4. Anomaly: Non-empty source with status='ai_translated' but empty translated_text -> MUST be treated as untranslated!
+        {
+          id: '4', key_id: 'k4', key_path: 'dlg.broken_ai', source_text: 'Needs translation',
+          translated_text: '   ', status: 'ai_translated', order_index: 3,
+          language_id: testLangId, language_code: testLangCode, updated_at: '',
+        },
+      ];
+
+      await LocalCacheStore.set('games', {
+        id: testGameId,
+        name: 'Parity Game',
+        totalKeys: 4,
+        languages: [{
+          language_id: testLangId,
+          language_code: testLangCode,
+          language_name: 'Portuguese',
+          total_keys: 0, // Intentionally 0 to test reconciliation
+          translated_keys: 99, // Intentionally drifted
+          approved_keys: 5,
+          progress_percentage: 100,
+        }],
+      });
+
+      await TranslationChunkManager.saveItemsInChunks(testGameId, testLangCode, items);
+      const reconciled = await CloudTranslationsStore.reconcileLanguageProgress(testGameId, testLangCode);
+      assert.ok(reconciled);
+      assert.strictEqual(reconciled.total_keys, 4);
+      // Item 2 ('Mundo') and Item 3 (empty source with status='ai_translated') are translated = 2
+      assert.strictEqual(reconciled.translated_keys, 2);
+      const missingCount = reconciled.total_keys - reconciled.translated_keys;
+      assert.strictEqual(missingCount, 2);
+
+      // Query paginated table with status='untranslated'
+      const untranslatedPage = await CloudTranslationsStore.getPaginatedTranslations({
+        gameId: testGameId,
+        langCode: testLangCode,
+        page: 1,
+        pageSize: 50,
+        status: 'untranslated',
+      });
+      assert.strictEqual(untranslatedPage.totalCount, missingCount, 'UNTRANSLATED filter count must match Missing count');
+      assert.deepStrictEqual(untranslatedPage.items.map((i) => i.key_path), ['dlg.1', 'dlg.broken_ai']);
+    });
+
+    it('should export JSON preserving chunked template and object schemaConfig', async () => {
+      const rawTemplate = JSON.stringify([
+        { key: 'ui.start', text: 'Start Game', context: 'Menu' },
+        { key: 'ui.exit', text: 'Exit', context: 'Menu' },
+      ]);
+      await CloudGamesStore.saveTemplate(testGameId, rawTemplate);
+
+      const loadedTpl = await CloudGamesStore.loadTemplate(testGameId);
+      assert.strictEqual(loadedTpl, rawTemplate);
+
+      const flatMap = { 'ui.start': 'Iniciar Jogo', 'ui.exit': 'Sair' };
+      // Pass schemaConfig as an object AND as a string to verify both work
+      const schemaObj = { mode: 'array_of_objects' as const, keyField: 'key', textFields: ['text'], contextField: 'context' };
+      const exportedFromObj = ClientJsonExporter.unflattenWithTemplate(flatMap, loadedTpl, schemaObj);
+      assert.ok(Array.isArray(exportedFromObj));
+      assert.strictEqual(exportedFromObj[0].text, 'Iniciar Jogo');
+      assert.strictEqual(exportedFromObj[0].context, 'Menu');
+      assert.strictEqual(exportedFromObj[1].text, 'Sair');
     });
   });
 });

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useDeferredValue, useMemo } from 'react';
-import { KeyTranslationItem, TreeKeyItem, TranslationStatus } from '../../types/client_types.ts';
+import { KeyTranslationItem, TreeKeyItem, TranslationStatus, LanguageProgress } from '../../types/client_types.ts';
 import { ApiClient } from '../../services/api_client.ts';
+import { isItemTranslated } from '../../services/translation_chunk_manager.ts';
 import { SseTranslationStream } from '../../services/sse_translation_stream.ts';
 import { TranslationRowItem } from './TranslationRowItem.tsx';
 import { KeyTreeExplorer } from './KeyTreeExplorer.tsx';
@@ -13,6 +14,7 @@ interface TranslationTableProps {
   refreshKey?: number;
   onSaveTranslation: (keyId: string, text: string, status?: TranslationStatus, orderIndex?: number) => Promise<void>;
   onTranslateSingle: (item: KeyTranslationItem) => Promise<string>;
+  onProgressReconciled?: (progress: LanguageProgress | undefined) => void;
 }
 
 const PAGE_SIZE_OPTIONS = [30, 50, 100, 200];
@@ -24,6 +26,7 @@ export const TranslationTable: React.FC<TranslationTableProps> = ({
   refreshKey,
   onSaveTranslation,
   onTranslateSingle,
+  onProgressReconciled,
 }) => {
   const [pageItems, setPageItems] = useState<KeyTranslationItem[]>([]);
   const [treeItems, setTreeItems] = useState<TreeKeyItem[]>([]);
@@ -48,6 +51,13 @@ export const TranslationTable: React.FC<TranslationTableProps> = ({
     try {
       const items = await ApiClient.getTreeItems(gameId, languageCode);
       setTreeItems(items);
+      if (items.length > 0 && onProgressReconciled) {
+        ApiClient.reconcileLanguageProgress(gameId, languageCode)
+          .then((reconciled) => {
+            if (reconciled) onProgressReconciled(reconciled);
+          })
+          .catch(() => {});
+      }
     } catch (err) {
       console.error('Failed to load tree items:', err);
     } finally {
@@ -119,6 +129,50 @@ export const TranslationTable: React.FC<TranslationTableProps> = ({
     [treeItems, hideEmptySource]
   );
 
+  const statusCounts = useMemo(() => {
+    let baseList = visibleTreeItems;
+    if (selectedTreePrefix) {
+      const pLower = selectedTreePrefix.toLowerCase();
+      baseList = baseList.filter((i) => {
+        let k = i.key_path.toLowerCase();
+        if (k.startsWith('$$$') && k.endsWith('$$')) k = k.slice(3, -2);
+        return k.startsWith(pLower) || k.startsWith(`.${pLower}`) || k.startsWith(`/${pLower}`) || k.startsWith(`:${pLower}`);
+      });
+    }
+    if (deferredSearch && deferredSearch.trim()) {
+      const q = deferredSearch.trim().toLowerCase();
+      baseList = baseList.filter(
+        (i) =>
+          i.key_path.toLowerCase().includes(q) ||
+          (i.source_text || '').toLowerCase().includes(q) ||
+          (i.translated_text || '').toLowerCase().includes(q)
+      );
+    }
+
+    let untranslated = 0;
+    let ai_translated = 0;
+    let manual_translated = 0;
+    let approved = 0;
+
+    for (const item of baseList) {
+      if (!isItemTranslated(item)) {
+        untranslated++;
+      } else {
+        if (item.status === 'ai_translated') ai_translated++;
+        else if (item.status === 'manual_translated') manual_translated++;
+        else if (item.status === 'approved') approved++;
+      }
+    }
+
+    return {
+      all: baseList.length,
+      untranslated,
+      ai_translated,
+      manual_translated,
+      approved,
+    };
+  }, [visibleTreeItems, selectedTreePrefix, deferredSearch]);
+
   const startIndex = (currentPage - 1) * pageSize;
 
   return (
@@ -165,17 +219,26 @@ export const TranslationTable: React.FC<TranslationTableProps> = ({
 
         {/* Status Filter Buttons */}
         <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
-          {(['all', 'untranslated', 'ai_translated', 'manual_translated', 'approved'] as const).map((st) => (
-            <button
-              key={st}
-              onClick={() => { setStatusFilter(st); setCurrentPage(1); }}
-              className={`px-3 py-1.5 text-xs font-bold whitespace-nowrap border transition-colors ${
-                statusFilter === st ? 'bg-[#5865F2] text-white border-[#5865F2]' : 'bg-[#0D1117] text-[#8B949E] hover:text-[#E6EDF3] border-[#30363D]'
-              }`}
-            >
-              {st === 'all' ? 'ALL' : st === 'untranslated' ? 'UNTRANSLATED' : st === 'ai_translated' ? 'AI TRANSLATED' : st === 'manual_translated' ? 'MANUAL' : 'APPROVED'}
-            </button>
-          ))}
+          {(['all', 'untranslated', 'ai_translated', 'manual_translated', 'approved'] as const).map((st) => {
+            const label = st === 'all' ? 'ALL' : st === 'untranslated' ? 'UNTRANSLATED' : st === 'ai_translated' ? 'AI TRANSLATED' : st === 'manual_translated' ? 'MANUAL' : 'APPROVED';
+            const count = treeItems.length > 0 ? statusCounts[st] : null;
+            return (
+              <button
+                key={st}
+                onClick={() => { setStatusFilter(st); setCurrentPage(1); }}
+                className={`px-3 py-1.5 text-xs font-bold whitespace-nowrap border transition-colors flex items-center gap-1.5 ${
+                  statusFilter === st ? 'bg-[#5865F2] text-white border-[#5865F2]' : 'bg-[#0D1117] text-[#8B949E] hover:text-[#E6EDF3] border-[#30363D]'
+                }`}
+              >
+                <span>{label}</span>
+                {count !== null && (
+                  <span className={`px-1 py-0.2 text-[10px] font-mono ${statusFilter === st ? 'bg-black/30 text-white' : 'bg-[#161B22] text-[#8B949E]'}`}>
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
 

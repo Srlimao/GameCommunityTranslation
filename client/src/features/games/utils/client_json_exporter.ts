@@ -8,15 +8,41 @@ export class ClientJsonExporter {
   static unflattenWithTemplate(
     flatMap: Record<string, string>,
     rawTemplateStr?: string,
-    schemaConfigStr?: string
+    schemaConfigInput?: string | JsonSchemaConfig
   ): any {
-    if (!rawTemplateStr || !schemaConfigStr) {
+    const schema: JsonSchemaConfig | undefined = schemaConfigInput
+      ? (typeof schemaConfigInput === 'string' ? JSON.parse(schemaConfigInput) : schemaConfigInput)
+      : undefined;
+
+    if (!rawTemplateStr) {
+      if (schema?.mode === 'dictionary_kv') {
+        return { ...flatMap };
+      }
+      if (schema?.mode === 'grouped_dictionary') {
+        const grouped: Record<string, Record<string, string>> = {};
+        for (const [k, v] of Object.entries(flatMap)) {
+          const dotIdx = k.indexOf('.');
+          if (dotIdx > 0) {
+            const group = k.slice(0, dotIdx);
+            const subKey = k.slice(dotIdx + 1);
+            if (!grouped[group]) grouped[group] = {};
+            grouped[group][subKey] = v;
+          } else {
+            if (!grouped['default']) grouped['default'] = {};
+            grouped['default'][k] = v;
+          }
+        }
+        return grouped;
+      }
+      return this.unflatten(flatMap);
+    }
+
+    if (!schema) {
       return this.unflatten(flatMap);
     }
 
     try {
       const template = JSON.parse(rawTemplateStr);
-      const schema: JsonSchemaConfig = JSON.parse(schemaConfigStr);
 
       if (schema.rootPath && template && typeof template === 'object' && Array.isArray(template[schema.rootPath])) {
         const cloned = JSON.parse(JSON.stringify(template));

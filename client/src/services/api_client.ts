@@ -14,6 +14,7 @@ import {
 } from '../types/client_types.ts';
 import { CloudGamesStore } from './cloud_games_store.ts';
 import { CloudTranslationsStore } from './cloud_translations_store.ts';
+import { isItemTranslated } from './translation_chunk_manager.ts';
 import { CloudGlossaryStore } from './cloud_glossary_store.ts';
 import { CloudSettingsStore } from './cloud_settings_store.ts';
 import { BrowserAIService } from '../features/ai/browser_ai_service.ts';
@@ -99,6 +100,10 @@ export const ApiClient = {
     return await CloudTranslationsStore.getTreeItems(gameId, langCode);
   },
 
+  async reconcileLanguageProgress(gameId: string, langCode: string): Promise<LanguageProgress | undefined> {
+    return await CloudTranslationsStore.reconcileLanguageProgress(gameId, langCode);
+  },
+
   async importPartialTranslations(
     gameId: string,
     languageCode: string,
@@ -174,7 +179,7 @@ export const ApiClient = {
     const settings = await CloudSettingsStore.getSettings();
 
     let itemsToTranslate = params.onlyUntranslated
-      ? allItems.filter((i) => !i.translated_text || i.status === 'untranslated')
+      ? allItems.filter((i) => !isItemTranslated(i))
       : allItems;
 
     if (params.scopePrefix) {
@@ -254,7 +259,7 @@ export const ApiClient = {
     const game = await this.getGame(params.gameId);
     const allItems = await CloudTranslationsStore.getTranslations(params.gameId, params.languageCode);
     const itemsToTranslate = params.filter === 'untranslated'
-      ? allItems.filter((i) => !i.translated_text || i.status === 'untranslated')
+      ? allItems.filter((i) => !isItemTranslated(i))
       : allItems;
 
     if (itemsToTranslate.length === 0) {
@@ -310,6 +315,10 @@ export const ApiClient = {
     };
   },
 
+  async getExportMap(gameId: string, languageCode: string): Promise<Record<string, string>> {
+    return await CloudTranslationsStore.getExportMap(gameId, languageCode);
+  },
+
   async exportJson(gameId: string, languageCode: string): Promise<Record<string, string>> {
     return await CloudTranslationsStore.getExportMap(gameId, languageCode);
   },
@@ -317,8 +326,7 @@ export const ApiClient = {
   async exportJsonWithStructure(gameId: string, languageCode: string): Promise<any> {
     const game = await this.getGame(gameId);
     const translationMap = await CloudTranslationsStore.getExportMap(gameId, languageCode);
-    const rawTemplate = await CloudGamesStore.loadTemplate(gameId);
-    if (!rawTemplate) return translationMap;
+    const rawTemplate = game.raw_json_template || await CloudGamesStore.loadTemplate(gameId);
     const { ClientJsonExporter } = await import('../features/games/utils/client_json_exporter.ts');
     return ClientJsonExporter.unflattenWithTemplate(translationMap, rawTemplate, game.schema_config);
   },
