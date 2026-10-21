@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { GameSummary, GlossaryEntry } from '../../types/client_types.ts';
 import { ApiClient } from '../../services/api_client.ts';
-import { BookOpen, Plus, Search, CheckSquare, Square, Trash2, Loader2, Sparkles } from 'lucide-react';
+import { GlossaryImportModal } from '../glossary/GlossaryImportModal.tsx';
+import { BookOpen, Plus, Search, Trash2, Upload } from 'lucide-react';
 
 interface AdvancedGlossaryBoardModuleProps {
   game: GameSummary;
@@ -10,12 +11,12 @@ interface AdvancedGlossaryBoardModuleProps {
 
 export const AdvancedGlossaryBoardModule: React.FC<AdvancedGlossaryBoardModuleProps> = ({
   game,
-  onOpenEntryModal,
 }) => {
   const [entries, setEntries] = useState<GlossaryEntry[]>([]);
   const [search, setSearch] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   const [termEn, setTermEn] = useState('');
   const [termTarget, setTermTarget] = useState('');
@@ -87,8 +88,16 @@ export const AdvancedGlossaryBoardModule: React.FC<AdvancedGlossaryBoardModulePr
 
         <div className="flex items-center gap-1.5">
           <button
+            onClick={() => setIsImportModalOpen(true)}
+            className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold bg-[#0D1117] hover:bg-[#30363D] text-[#E6EDF3] border border-[#30363D] transition-colors cursor-pointer"
+            title="Import Glossary JSON"
+          >
+            <Upload className="w-3 h-3 text-[#5865F2]" />
+            <span>Import JSON</span>
+          </button>
+          <button
             onClick={() => setShowAddForm(!showAddForm)}
-            className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold bg-[#5865F2] hover:bg-[#4C6EF5] text-white border border-[#5865F2] transition-colors"
+            className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold bg-[#5865F2] hover:bg-[#4C6EF5] text-white border border-[#5865F2] transition-colors cursor-pointer"
           >
             <Plus className="w-3 h-3" />
             <span>Glossary Form</span>
@@ -195,6 +204,13 @@ export const AdvancedGlossaryBoardModule: React.FC<AdvancedGlossaryBoardModulePr
           </tbody>
         </table>
       </div>
+      <GlossaryImportModal
+        isOpen={isImportModalOpen}
+        gameId={game.id}
+        defaultLanguageCode={game.languages?.[0]?.language_code || 'pt-BR'}
+        onClose={() => setIsImportModalOpen(false)}
+        onImported={loadGlossary}
+      />
     </div>
   );
 };

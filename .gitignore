@@ -11,3 +11,4 @@ data/*.db-shm
 !.env.example
 test-results/
 playwright-report/
+projects/

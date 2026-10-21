@@ -52,15 +52,19 @@ export class CloudGlossaryStore {
     return newEntry;
   }
 
-  static async batchAdd(gameId: string, candidates: Partial<GlossaryEntry>[]): Promise<number> {
+  static async batchAdd(
+    gameId: string,
+    candidates: Partial<GlossaryEntry>[],
+    overwriteExisting = false
+  ): Promise<number> {
     const entries = await this.getGlossary(gameId);
-    let addedCount = 0;
+    let affectedCount = 0;
 
     for (const c of candidates) {
       const src = (c.source_term || '').trim().toLowerCase();
       if (!src) continue;
-      const exists = entries.some((e) => e.source_term.trim().toLowerCase() === src);
-      if (!exists) {
+      const existingIdx = entries.findIndex((e) => e.source_term.trim().toLowerCase() === src);
+      if (existingIdx === -1) {
         entries.push({
           id: uuidv4(),
           game_id: gameId,
@@ -71,14 +75,23 @@ export class CloudGlossaryStore {
           notes: c.notes || '',
           created_at: new Date().toISOString(),
         });
-        addedCount++;
+        affectedCount++;
+      } else if (overwriteExisting) {
+        entries[existingIdx] = {
+          ...entries[existingIdx],
+          target_term: (c.target_term || '').trim() || entries[existingIdx].target_term,
+          target_language: c.target_language ?? entries[existingIdx].target_language,
+          category: c.category || entries[existingIdx].category,
+          notes: c.notes ?? entries[existingIdx].notes,
+        };
+        affectedCount++;
       }
     }
 
     const doc: GameGlossaryDoc = { game_id: gameId, entries };
     await LocalCacheStore.set('glossary', doc);
     await RemoteJsonDb.upsertDoc(COLLECTION_GLOSSARY, gameId, doc);
-    return addedCount;
+    return affectedCount;
   }
 
   static async updateEntry(gameId: string, id: string, partial: Partial<GlossaryEntry>): Promise<GlossaryEntry> {

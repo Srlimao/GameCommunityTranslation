@@ -330,8 +330,8 @@ export const ApiClient = {
   async addGlossaryEntry(gameId: string, entry: Partial<GlossaryEntry>): Promise<GlossaryEntry> {
     return await CloudGlossaryStore.addEntry(gameId, entry);
   },
-  async batchAddGlossary(gameId: string, entries: Partial<GlossaryEntry>[]): Promise<number> {
-    return await CloudGlossaryStore.batchAdd(gameId, entries);
+  async batchAddGlossary(gameId: string, entries: Partial<GlossaryEntry>[], overwriteExisting = false): Promise<number> {
+    return await CloudGlossaryStore.batchAdd(gameId, entries, overwriteExisting);
   },
   async updateGlossaryEntry(gameId: string, id: string, entry: Partial<GlossaryEntry>): Promise<GlossaryEntry> {
     return await CloudGlossaryStore.updateEntry(gameId, id, entry);

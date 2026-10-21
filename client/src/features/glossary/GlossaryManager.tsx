@@ -3,7 +3,8 @@ import { GameSummary, GlossaryEntry } from '../../types/client_types.ts';
 import { ApiClient } from '../../services/api_client.ts';
 import { GlossaryTable } from './GlossaryTable.tsx';
 import { GlossaryEntryModal } from './GlossaryEntryModal.tsx';
-import { Layers, Plus, Search, Filter, Download } from 'lucide-react';
+import { GlossaryImportModal } from './GlossaryImportModal.tsx';
+import { Layers, Plus, Search, Download, Upload } from 'lucide-react';
 
 interface GlossaryManagerProps {
   game: GameSummary;
@@ -15,6 +16,7 @@ export const GlossaryManager: React.FC<GlossaryManagerProps> = ({ game }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<GlossaryEntry | null>(null);
 
   const loadGlossary = async () => {
@@ -80,10 +82,19 @@ export const GlossaryManager: React.FC<GlossaryManagerProps> = ({ game }) => {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsImportModalOpen(true)}
+            className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold bg-[#0D1117] hover:bg-[#30363D] text-[#E6EDF3] border border-[#30363D] transition-colors cursor-pointer"
+            title="Import Glossary from JSON"
+          >
+            <Upload className="w-3.5 h-3.5 text-[#5865F2]" />
+            <span>IMPORT JSON</span>
+          </button>
+
           {entries.length > 0 && (
             <button
               onClick={handleExportGlossary}
-              className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold bg-[#0D1117] hover:bg-[#30363D] text-[#E6EDF3] border border-[#30363D] transition-colors"
+              className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold bg-[#0D1117] hover:bg-[#30363D] text-[#E6EDF3] border border-[#30363D] transition-colors cursor-pointer"
               title="Export Glossary as JSON"
             >
               <Download className="w-3.5 h-3.5" />
@@ -148,6 +159,14 @@ export const GlossaryManager: React.FC<GlossaryManagerProps> = ({ game }) => {
         entryToEdit={editingEntry}
         onClose={() => setIsModalOpen(false)}
         onSaved={loadGlossary}
+      />
+
+      <GlossaryImportModal
+        isOpen={isImportModalOpen}
+        gameId={game.id}
+        defaultLanguageCode={game.languages?.[0]?.language_code || 'pt-BR'}
+        onClose={() => setIsImportModalOpen(false)}
+        onImported={loadGlossary}
       />
     </div>
   );
