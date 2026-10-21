@@ -20,8 +20,22 @@ const getEnv = (key: string): string => {
   return '';
 };
 
+const getDefaultBaseUrl = (): string => {
+  const envUrl = getEnv('VITE_GCP_DB_BASE_URL') || getEnv('GCP_DB_BASE_URL');
+  if (envUrl) return envUrl;
+  try {
+    if (typeof window !== 'undefined' && window.location?.hostname) {
+      const host = window.location.hostname;
+      if (host.endsWith('.dunhas.com') || host.endsWith('.pages.dev')) {
+        return `${window.location.origin}/api`;
+      }
+    }
+  } catch {}
+  return 'https://translator.dunhas.com/api';
+};
+
 export const DEFAULT_REMOTE_DB_CONFIG: RemoteDbConfig = {
-  baseUrl: getEnv('VITE_GCP_DB_BASE_URL') || getEnv('GCP_DB_BASE_URL') || 'https://db.dunhas.com/api',
+  baseUrl: getDefaultBaseUrl(),
   apiKey: getEnv('VITE_GCP_DB_API_KEY') || getEnv('GCP_API_KEY') || '',
 };
 
@@ -95,18 +109,42 @@ export class RemoteJsonDb {
   }
 
   /**
-   * Health check for db.dunhas.com
+   * Health check for remote DB
    */
   static async healthCheck(): Promise<boolean> {
     try {
-      const config = this.getConfig();
-      const origin = new URL(config.baseUrl).origin;
-      const res = await fetch(`${origin}/health`, { method: 'GET' });
+      const baseUrl = this.getBaseUrl();
+      const res = await fetch(`${baseUrl}/health`, { method: 'GET' });
       const data = await res.json();
       return data?.status === 'ok';
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Batch upsert multiple documents into a collection in a single request
+   */
+  static async batchUpsertDocs<T = any>(
+    collection: string,
+    docs: Array<{ id: string; data: T }>
+  ): Promise<boolean> {
+    if (docs.length === 0) return true;
+    const url = `${this.getBaseUrl()}/_batch/${encodeURIComponent(collection)}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ docs }),
+    });
+    if (!res.ok) {
+      // Fallback to sequential upserts if backend doesn't support /_batch
+      for (const d of docs) {
+        await this.upsertDoc(collection, d.id, d.data);
+      }
+      return true;
+    }
+    const resJson = await res.json();
+    return !!resJson.ok;
   }
 
   /**

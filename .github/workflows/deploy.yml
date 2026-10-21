@@ -37,7 +37,7 @@ jobs:
       - name: Build frontend application
         env:
           VITE_GCP_DB_API_KEY: ${{ secrets.VITE_GCP_DB_API_KEY }}
-          VITE_GCP_DB_BASE_URL: ${{ vars.VITE_GCP_DB_BASE_URL || 'https://db.dunhas.com/api' }}
+          VITE_GCP_DB_BASE_URL: ${{ vars.VITE_GCP_DB_BASE_URL || 'https://translator.dunhas.com/api' }}
         run: npm run build
 
       - name: Setup GitHub Pages

@@ -6,7 +6,7 @@ import { runWithConcurrency } from './concurrency_limiter.ts';
 
 export const COLLECTION_TRANSLATIONS = 'lt_translations';
 export const CHUNK_SIZE = 1000;
-export const CONCURRENT_CHUNKS = 4;
+export const CONCURRENT_CHUNKS = 8;
 
 export interface TranslationChunkDoc {
   chunk_id: string;
